@@ -23,7 +23,7 @@ public class BattleshipBackendApplication {
   @Bean
   public HandlerMapping webSocketHandlerMapping() {
     Map<String, WebSocketHandler> map = new HashMap<>();
-    map.put("/socket", webSocketHandler);
+    map.put("/play", webSocketHandler);
 
     SimpleUrlHandlerMapping handlerMapping = new SimpleUrlHandlerMapping();
     handlerMapping.setOrder(1);
