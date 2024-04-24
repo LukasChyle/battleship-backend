@@ -52,7 +52,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
               return Flux.error(new RuntimeException(e));
             }
           } else if (GameCommandType.STRIKE == type) {
-            return Mono.empty();
+            return Mono.just("Hello, trying to strike are we?");
           } else {
             return Mono.empty();
           }
