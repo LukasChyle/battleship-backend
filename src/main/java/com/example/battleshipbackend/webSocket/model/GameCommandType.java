@@ -5,14 +5,15 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 @Getter
-public enum RequestType {
+public enum GameCommandType {
   JOIN("JOIN"),
+  RECONNECT("RECONNECT"),
   LEAVE("LEAVE"),
   STRIKE("STRIKE");
 
   private final String value;
 
-  RequestType(String value) {
+  GameCommandType(String value) {
     this.value = value;
   }
 
@@ -27,8 +28,8 @@ public enum RequestType {
   }
 
   @JsonCreator
-  public static RequestType fromValue(String value) {
-    for (RequestType b : RequestType.values()) {
+  public static GameCommandType fromValue(String value) {
+    for (GameCommandType b : GameCommandType.values()) {
       if (b.value.equals(value)) {
         return b;
       }

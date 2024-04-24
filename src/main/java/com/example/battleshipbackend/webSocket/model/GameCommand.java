@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 public class GameCommand {
   @JsonProperty("type")
-  private RequestType type;
+  private GameCommandType type;
   @JsonProperty("gameId")
   private String gameId;
   @JsonProperty("content")
