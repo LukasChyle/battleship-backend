@@ -58,9 +58,9 @@ public class GameWebSocketHandler implements WebSocketHandler {
               return Flux.error(new RuntimeException(e));
             }
           } else if (gameCommand.getType() == GameCommandType.RECONNECT) {
-            return handleStrikeRequest(session, gameCommand);
+            return handleReconnectRequest(session, gameCommand);
           } else if (gameCommand.getType() == GameCommandType.LEAVE) {
-            return handleStrikeRequest(session, gameCommand);
+            return handleLeaveRequest(session, gameCommand);
           }
           // TODO: remove log and change return to Mono.empty() when tests are done.
           log.error("Could not handle GameCommandType from session <{}>", session.getId());
@@ -120,6 +120,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private Mono<String> handleStrikeRequest(WebSocketSession session, GameCommand command) {
 
+    log.info("Handle STRIKE <{}>", command.getContent());
     // TODO: When GAME_OVER, close both sessions.
     return Mono.just("Strike request");
   }

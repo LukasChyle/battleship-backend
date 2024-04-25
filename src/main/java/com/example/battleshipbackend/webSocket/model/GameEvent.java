@@ -22,4 +22,6 @@ public class GameEvent {
   private List<String> opponentStrikes;
   @JsonProperty("type")
   private GameEventType type;
+  @JsonProperty("ships")
+  private List<Ship> ships;
 }
