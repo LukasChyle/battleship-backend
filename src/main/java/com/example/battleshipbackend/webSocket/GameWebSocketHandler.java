@@ -27,11 +27,13 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   @Override
   public Mono<Void> handle(WebSocketSession session) {
+    session.textMessage("Connection established!");
+    log.info("New WebSocketSession <{}>", session.getId());
     return session.receive()
         .onErrorResume(throwable -> {
-          if (throwable instanceof IOException) { // TODO: might need more exception catching, ReactorNettyException?
-            // Likely client disconnected
-            log.info("Client disconnected from session: {}", session.getId());
+          log.error("WebSocketSession <{}>: <{}>", session.getId(), throwable.toString());
+          if (throwable instanceof IOException) { // FIXME: might need more exception catching to hande all client disconnections, ReactorNettyException?
+            log.error("Client disconnected from session <{}>", session.getId());
             return Mono.empty();
           }
           return Mono.error(throwable);
@@ -41,34 +43,43 @@ public class GameWebSocketHandler implements WebSocketHandler {
           try {
             gameCommand = objectMapper.readValue(message.getPayloadAsText(), GameCommand.class);
           } catch (JsonProcessingException e) {
+            log.error("Cast to GameCommand object error <{}>", e.getMessage());
             return Flux.error(new RuntimeException(e));
           }
+          log.info("Incoming message <{}>", gameCommand);
 
-          GameCommandType type = gameCommand.getType();
-          if (GameCommandType.JOIN == type) {
+          if (gameCommand.getType() == GameCommandType.STRIKE) {
+            return handleStrikeRequest(session, gameCommand);
+          } else if (gameCommand.getType() == GameCommandType.JOIN) {
             try {
               return handleJoinRequest(session);
             } catch (JsonProcessingException e) {
+              log.error(e.getMessage());
               return Flux.error(new RuntimeException(e));
             }
-          } else if (GameCommandType.STRIKE == type) {
-            return Mono.just("Hello, trying to strike are we?");
-          } else {
-            return Mono.empty();
+          } else if (gameCommand.getType() == GameCommandType.RECONNECT) {
+            return handleStrikeRequest(session, gameCommand);
+          } else if (gameCommand.getType() == GameCommandType.LEAVE) {
+            return handleStrikeRequest(session, gameCommand);
           }
+          // TODO: remove log and change return to Mono.empty() when tests are done.
+          log.error("Could not handle GameCommandType from session <{}>", session.getId());
+          return Mono.just("Could not handle GameCommandType");
+
         })
         .then(session.close())
         .doFinally(signal -> {
-          log.info("GameSession is removed: {}", session.getId());
-          //todo: check if other session in gameSession is still open and gameStatus is not GAME_OVER, else remove gameSession
+          log.info("Closed WebSocketSession <{}>", session.getId());
+          log.info("Removed GameSession <{}>", "gameSessionId");
+          //TODO: check if other session in gameSession is still open, else remove gameSession
+          //TODO: Remove game session if GAME_OVER
         });
   }
 
-  // TODO: handle .recieve() IF client have game-Id send command and client-Id to gameSession ELSE handle join request.
-  // TODO: when two people are paired .send() to both client-sessions.
-  // TODO: .send() response can come from different places, receive always comes from the same location, make sure it makes it way into the gameSession or correct location.
-
   private Mono<String> handleJoinRequest(WebSocketSession session) throws JsonProcessingException {
+
+    // TODO: Check so session is not in a current game, game status should not be GAME_OVER
+
     GameSession game = gameSessions.values().stream()
         .filter(e -> e.getSessionPlayer2() == null)
         .findFirst().orElseGet(() -> {
@@ -76,6 +87,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
           newGame.setId(UUID.randomUUID().toString());
           newGame.setSessionPlayer1(session);
           gameSessions.put(newGame.getId(), newGame);
+          log.info("New GameSession <{}>", newGame.getId());
           return newGame;
         });
 
@@ -86,6 +98,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
           .build()));
     } else {
       game.setSessionPlayer2(session);
+      log.info("WebSocketSession <{}> joined GameSession <{}>", session.getId(), game.getId());
 
       String messageToPlayer1 = objectMapper.writeValueAsString(GameEvent.builder()
           .gameId(game.getId())
@@ -104,4 +117,23 @@ public class GameWebSocketHandler implements WebSocketHandler {
       return Mono.just(messageToPlayer2);
     }
   }
+
+  private Mono<String> handleStrikeRequest(WebSocketSession session, GameCommand command) {
+
+    // TODO: When GAME_OVER, close both sessions.
+    return Mono.just("Strike request");
+  }
+
+  private Mono<String> handleReconnectRequest(WebSocketSession session, GameCommand command) {
+
+    // TODO: RECONNECT, with game id and previous session id rejoin the game if game status is not GAME_OVER.
+    return Mono.just("Reconnect request");
+  }
+
+  private Mono<String> handleLeaveRequest(WebSocketSession session, GameCommand command) {
+
+    // TODO: Player wants to leave, send messages to players and chane game status to GAME_OVER and close both sessions.
+    return Mono.just("Leave request");
+  }
 }
+

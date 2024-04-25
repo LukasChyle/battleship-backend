@@ -20,6 +20,6 @@ public class GameSession {
     private WebSocketSession sessionPlayer2;
     private List<String> strikesPlayer1 = new ArrayList<>();
     private List<String> strikesPlayer2 = new ArrayList<>();
-
-
+    private List<String> positionsPlayer1 = new ArrayList<>();
+    private List<String> positionsPlayer2 = new ArrayList<>();
 }
