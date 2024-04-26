@@ -20,6 +20,10 @@ public class GameEvent {
   private List<String> ownStrikes;
   @JsonProperty("opponentStrikes")
   private List<String> opponentStrikes;
+  @JsonProperty("strikeRow")
+  private String strikeRow;
+  @JsonProperty("strikeCol")
+  private String strikeCol;
   @JsonProperty("type")
   private GameEventType type;
   @JsonProperty("ships")
