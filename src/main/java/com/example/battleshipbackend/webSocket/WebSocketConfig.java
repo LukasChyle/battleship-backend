@@ -16,7 +16,7 @@ public class WebSocketConfig {
   }
 
   @Bean
-  public WebSocketHandlerAdapter handlerAdapter(WebSocketHandler webSocketHandler) {
+  public WebSocketHandlerAdapter handlerAdapter() {
     return new WebSocketHandlerAdapter();
   }
 

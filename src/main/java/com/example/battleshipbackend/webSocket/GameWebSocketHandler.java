@@ -131,7 +131,19 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
     log.info("Handle STRIKE <{}>", command.getContent());
     // TODO: When GAME_OVER, close both sessions.
-    return session.send(Mono.just("Connection established!").map(session::textMessage)).then();
+
+    String messageToPlayer2 = "";
+    try {
+      messageToPlayer2 = objectMapper.writeValueAsString(GameEvent.builder()
+          .gameId(command.getGameId())
+          .type(GameEventType.TURN_OPPONENT)
+          .build());
+    } catch (JsonProcessingException e) {
+      log.error(e.getMessage());
+    }
+
+
+    return session.send(Mono.just(messageToPlayer2).map(session::textMessage)).then();
   }
 
   private Mono<String> handleReconnectRequest(WebSocketSession session, GameCommand command) {
