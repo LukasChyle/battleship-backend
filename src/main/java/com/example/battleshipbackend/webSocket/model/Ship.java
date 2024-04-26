@@ -5,6 +5,8 @@ import lombok.Data;
 
 @Data
 public class Ship {
+  @JsonProperty("id")
+  private String id;
   @JsonProperty("isHorizontal")
   private boolean isHorizontal;
   @JsonProperty("length")
