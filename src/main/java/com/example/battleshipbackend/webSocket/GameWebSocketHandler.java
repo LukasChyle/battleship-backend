@@ -8,26 +8,36 @@ import com.example.battleshipbackend.webSocket.model.GameEventType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.stereotype.Controller;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import org.springframework.web.reactive.socket.WebSocketHandler;
+import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Log4j2
-@Controller
+@Component
 public class GameWebSocketHandler implements WebSocketHandler {
 
-  private static final ObjectMapper objectMapper = new ObjectMapper();
+  private final ObjectMapper objectMapper;
+
+  @Autowired
+  public GameWebSocketHandler(ObjectMapper objectMapper) {
+    this.objectMapper = objectMapper;
+  }
+
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
 
   @Override
   public Mono<Void> handle(WebSocketSession session) {
-    session.textMessage("Connection established!");
     log.info("New WebSocketSession <{}>", session.getId());
     return session.receive()
         .onErrorResume(throwable -> {
@@ -118,11 +128,11 @@ public class GameWebSocketHandler implements WebSocketHandler {
     }
   }
 
-  private Mono<String> handleStrikeRequest(WebSocketSession session, GameCommand command) {
+  private Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
 
     log.info("Handle STRIKE <{}>", command.getContent());
     // TODO: When GAME_OVER, close both sessions.
-    return Mono.just("Strike request");
+    return session.send(Mono.just("Connection established!").map(session::textMessage)).then();
   }
 
   private Mono<String> handleReconnectRequest(WebSocketSession session, GameCommand command) {
@@ -135,6 +145,17 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
     // TODO: Player wants to leave, send messages to players and chane game status to GAME_OVER and close both sessions.
     return Mono.just("Leave request");
+  }
+
+  public Mono<Void> sendMessageToGameSessions(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2) {
+    List<Mono<Void>> messages = new ArrayList<>();
+    try {
+      messages.add(session1.send(Mono.just(objectMapper.writeValueAsString(event1)).map(session1::textMessage)));
+      messages.add(session2.send(Mono.just(objectMapper.writeValueAsString(event2)).map(session2::textMessage)));
+    } catch (JsonProcessingException e) {
+      log.error(e.getMessage());
+    }
+    return Flux.concat(messages).then();
   }
 }
 
