@@ -24,6 +24,8 @@ public class GameEvent {
   private String strikeRow;
   @JsonProperty("strikeCol")
   private String strikeCol;
+  @JsonProperty("isHit")
+  private boolean isHit;
   @JsonProperty("type")
   private GameEventType type;
   @JsonProperty("ships")
