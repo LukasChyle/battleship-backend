@@ -1,6 +1,7 @@
 package com.example.battleshipbackend.game;
 
 import com.example.battleshipbackend.webSocket.model.GameStateType;
+import com.example.battleshipbackend.webSocket.model.Strike;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -18,8 +19,8 @@ public class GameSession {
     private GameStateType gameState = GameStateType.WAITING_OPPONENT;
     private WebSocketSession sessionPlayer1;
     private WebSocketSession sessionPlayer2;
-    private List<String> strikesPlayer1 = new ArrayList<>();
-    private List<String> strikesPlayer2 = new ArrayList<>();
+    private List<Strike> strikesPlayer1 = new ArrayList<>();
+    private List<Strike> strikesPlayer2 = new ArrayList<>();
     private List<String> positionsPlayer1 = new ArrayList<>();
     private List<String> positionsPlayer2 = new ArrayList<>();
 }

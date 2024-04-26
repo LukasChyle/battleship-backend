@@ -17,9 +17,9 @@ public class GameEvent {
   @JsonProperty("gameId")
   private String gameId;
   @JsonProperty("ownStrikes")
-  private List<String> ownStrikes;
+  private List<Strike> ownStrikes;
   @JsonProperty("opponentStrikes")
-  private List<String> opponentStrikes;
+  private List<Strike> opponentStrikes;
   @JsonProperty("strikeRow")
   private String strikeRow;
   @JsonProperty("strikeCol")
