@@ -1,4 +1,4 @@
-package com.example.battleshipbackend.webSocket.model;
+package com.example.battleshipbackend.game.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
@@ -6,6 +6,7 @@ import lombok.Getter;
 
 @Getter
 public enum GameEventType {
+    CONNECTED("CONNECTED"),
     WAITING_OPPONENT("WAITING_OPPONENT"),
     TURN_OWN("TURN_OWN"),
     TURN_OPPONENT("TURN_OPPONENT"),
