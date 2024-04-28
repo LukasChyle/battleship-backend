@@ -124,8 +124,6 @@ public class GameWebSocketHandler implements WebSocketHandler {
   }
 
   private Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
-    log.info("Handle STRIKE <{}>", command);
-
     GameSession game = gameSessions.get(command.getGameId());
     boolean isPlayer1 = game.getSessionPlayer1().equals(session);
 
@@ -171,7 +169,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
         return sendMessageToGameSessions(eventPlayer1, game.getSessionPlayer1(), eventPlayer2, session);
       }
     }
-    return session.send(Mono.error(new RuntimeException("not able to properly process the information given.")));
+    return session.send(Mono.error(new RuntimeException("Not your turn or wrong data given")));
   }
 
   private Mono<String> handleReconnectRequest(WebSocketSession session, GameCommand command) {
