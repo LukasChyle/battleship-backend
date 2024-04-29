@@ -55,24 +55,21 @@ public class GameWebSocketHandler implements WebSocketHandler {
           return Flux.error(throwable);
         })
         .flatMap(message -> {
-          GameCommand gameCommand;
+          GameCommand command;
           try {
-            gameCommand = objectMapper.readValue(message.getPayloadAsText(), GameCommand.class);
+            command = objectMapper.readValue(message.getPayloadAsText(), GameCommand.class);
           } catch (JsonProcessingException e) {
             log.error("Cast to GameCommand object error <{}>", e.getMessage());
             return Flux.error(new InvalidObjectException(e.getMessage()));
           }
-          log.info("Incoming message <{}>", gameCommand); // TODO: remove after tests
-
-          if (gameCommand.getGameId() == null) {
-            gameCommand.setGameId("");
+          if (command.getGameId() == null) {
+            command.setGameId("");
           }
-
-          return switch (gameCommand.getType()) {
-            case STRIKE -> handleStrikeRequest(session, gameCommand);
-            case JOIN -> handleJoinRequest(session, gameCommand);
-            case LEAVE -> handleLeaveRequest(session, gameCommand);
-            case RECONNECT -> handleReconnectRequest(session, gameCommand);
+          return switch (command.getType()) {
+            case STRIKE -> handleStrikeRequest(session, command);
+            case JOIN -> handleJoinRequest(session, command);
+            case LEAVE -> handleLeaveRequest(session, command);
+            case RECONNECT -> handleReconnectRequest(session, command);
           };
         })
         .then(session.close())
@@ -276,9 +273,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
       log.warn("handleLeaveRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
       return session.send(Flux.error(new Error("Game with that id does not exist")));
     }
-    gameSessions.remove(game.getId());
+    removeGameSession(game.getId());
     if (game.getSessionPlayer2() == null && game.getSessionPlayer1().equals(session)) {
-      removeGameSession(game.getId());
       return Mono.empty().then(session.close());
     }
     GameEvent event = GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build();
