@@ -94,7 +94,6 @@ public class GameWebSocketHandler implements WebSocketHandler {
                 }
               }
             }
-          log.info("gameSessions: <{}>", gameSessions); // TODO:
         });
   }
 
@@ -346,7 +345,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private void removeGameSession(String gameId) {
     gameSessions.remove(gameId);
-    log.info("removed GameSession <{}>", gameId);
+    log.info("removed GameSession <{}>, numbers of GameSessions: <{}>", gameId, gameSessions.size());
   }
 
 }
