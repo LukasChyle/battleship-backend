@@ -78,10 +78,23 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .then(session.close())
         .doFinally(signal -> {
           log.info("doFinally: Closed WebSocketSession <{}>", session.getId());
-
-          log.info("doFinally: Removed GameSession <{}>", "gameSessionId");
-          //TODO: check if other session in gameSession is still open, else remove gameSession
-          //TODO: Remove game session if GAME_OVER
+          for (var entry : gameSessions.entrySet()) {
+            if (entry.getValue().getSessionPlayer1().getId().equals(session.getId()) || entry.getValue().getSessionPlayer2().getId().equals(session.getId())) {
+              String gameId = entry.getKey();
+              if (entry.getValue().getSessionPlayer1() == null || entry.getValue().getSessionPlayer2() == null) {
+                gameSessions.remove(gameId);
+                log.info("doFinally: Removed GameSession <{}>", gameId);
+              } else {
+                if (entry.getValue().getSessionPlayer1().getId().equals(session.getId())) {
+                  gameSessions.get(gameId).setSessionPlayer1(null);
+                  log.info("doFinally: GameSession <{}>, removed SessionPlayer1", gameId);
+                } else {
+                  gameSessions.get(gameId).setSessionPlayer2(null);
+                  log.info("doFinally: GameSession <{}>, removed SessionPlayer2", gameId);
+                }
+              }
+            }
+          }
         });
   }
 
