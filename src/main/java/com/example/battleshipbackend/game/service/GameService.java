@@ -1,15 +1,18 @@
 package com.example.battleshipbackend.game.service;
 
-import com.example.battleshipbackend.game.model.GameSession;
-import com.example.battleshipbackend.game.model.Ship;
-import com.example.battleshipbackend.game.model.Strike;
-import java.util.List;
+import com.example.battleshipbackend.game.model.GameCommand;
+import org.springframework.web.reactive.socket.WebSocketSession;
+import reactor.core.publisher.Mono;
 
 public interface GameService {
 
-  void setShipsAndPositions(List<Ship> ships, GameSession game);
+  Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command);
 
-  boolean getStrikeMatchPosition(List<String> positions, String Strike);
+  Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command);
 
-  boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes);
+  Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command);
+
+  Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command);
+
+  void handleDoFinally(WebSocketSession session);
 }
