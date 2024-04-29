@@ -79,23 +79,24 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .doFinally(signal -> {
           log.info("doFinally: Closed WebSocketSession <{}>", session.getId());
           for (var entry : gameSessions.entrySet()) {
-            if ((entry.getValue().getSessionPlayer1() == null && entry.getValue().getSessionPlayer2().getId().equals(session.getId())) ||
-                (entry.getValue().getSessionPlayer2() == null && entry.getValue().getSessionPlayer1().getId().equals(session.getId()))) {
-              String gameId = entry.getKey();
-              gameSessions.remove(gameId);
-              log.info("doFinally: Removed GameSession <{}>", gameId);
-            } else {
-              if (entry.getValue().getSessionPlayer1().getId().equals(session.getId())) {
+              if (entry.getValue().getSessionPlayer1() != null && entry.getValue().getSessionPlayer1().getId().equals(session.getId())) {
                 String gameId = entry.getKey();
-                gameSessions.get(gameId).setSessionPlayer1(null);
-                log.info("doFinally: GameSession <{}>, removed SessionPlayer1", gameId);
-              } else if (entry.getValue().getSessionPlayer2().getId().equals(session.getId())) {
+                if (entry.getValue().getSessionPlayer2() == null) {
+                  removeGameSession(gameId);
+                } else {
+                  gameSessions.get(gameId).setSessionPlayer1(null);
+                  log.info("doFinally: removed player1 from GameSession <{}>", gameId);
+                }
+              } else if (entry.getValue().getSessionPlayer2() != null && entry.getValue().getSessionPlayer2().getId().equals(session.getId())) {
                 String gameId = entry.getKey();
-                gameSessions.get(gameId).setSessionPlayer2(null);
-                log.info("doFinally: GameSession <{}>, removed SessionPlayer2", gameId);
+                if (entry.getValue().getSessionPlayer1() == null) {
+                  removeGameSession(gameId);
+                } else {
+                  gameSessions.get(gameId).setSessionPlayer2(null);
+                  log.info("doFinally: removed player2 from GameSession <{}>", gameId);
+                }
               }
             }
-          }
           log.info("gameSessions: <{}>", gameSessions); // TODO:
         });
   }
@@ -107,11 +108,11 @@ public class GameWebSocketHandler implements WebSocketHandler {
           GameSession newGame = new GameSession();
           newGame.setId(UUID.randomUUID().toString());
           gameSessions.put(newGame.getId(), newGame);
-          log.info("handleJoinRequest: Created GameSession <{}>", newGame.getId());
+          log.info("handleJoinRequest: Added GameSession <{}>", newGame.getId());
           return newGame;
         });
 
-    log.info("handleJoinRequest: session <{}> joined GameSession <{}>", session.getId(), game.getId());
+    log.info("handleJoinRequest: Added player <{}> to GameSession <{}>", session.getId(), game.getId());
     setShipsAndPositions(command.getShips(), game);
 
     if (game.getSessionPlayer1() == null) {
@@ -277,8 +278,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
     }
     gameSessions.remove(game.getId());
     if (game.getSessionPlayer2() == null && game.getSessionPlayer1().equals(session)) {
-      gameSessions.remove(game.getId());
-      log.info("handleLeaveRequest: Removed GameSession <{}>", game.getId());
+      removeGameSession(game.getId());
       return Mono.empty().then(session.close());
     }
     GameEvent event = GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build();
@@ -293,8 +293,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
   }
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
-    gameSessions.remove(game.getId());
-    log.info("handleWin: Removed GameSession <{}>", game.getId());
+    removeGameSession(game.getId());
+
     GameEvent event1 = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
@@ -310,15 +310,13 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private Mono<Void> sendMessageToGameSessions(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2,
       boolean lastMessage) {
-    log.error("sendMessage1: {}", event1); // TODO:
-    log.error("sendMessage2: {}", event2); // TODO:
     List<Mono<Void>> messages = new ArrayList<>();
     try {
       messages.add(session1.send(Mono.just(objectMapper.writeValueAsString(event1)).map(session1::textMessage)));
       messages.add(session2.send(Mono.just(objectMapper.writeValueAsString(event2)).map(session2::textMessage)));
 
     } catch (JsonProcessingException e) {
-      log.error("sendMessageToGameSessions: Error processing JSON for WebSocket message: {}", e.getMessage());
+      log.error("sendMessageToGameSessions: error processing JSON for WebSocket message: {}", e.getMessage());
       messages = new ArrayList<>();
       messages.add(session1.send(Mono.error(new RuntimeException(e))));
       messages.add(session2.send(Mono.error(new RuntimeException(e))));
@@ -331,11 +329,10 @@ public class GameWebSocketHandler implements WebSocketHandler {
   }
 
   private Mono<Void> sendMessageToGameSession(GameEvent event, WebSocketSession session) {
-    log.error("sendMessage: {}", event); // TODO:
     try {
       return session.send(Mono.just(objectMapper.writeValueAsString(event)).map(session::textMessage));
     } catch (JsonProcessingException e) {
-      log.error("sendMessageToGameSession: Error processing JSON for WebSocket message: {}", e.getMessage());
+      log.error("sendMessageToGameSession: error processing JSON for WebSocket message: {}", e.getMessage());
       return Mono.error(new RuntimeException(e));
     }
   }
@@ -350,5 +347,11 @@ public class GameWebSocketHandler implements WebSocketHandler {
       game.setPositionsPlayer2(positions);
     }
   }
+
+  private void removeGameSession(String gameId) {
+    gameSessions.remove(gameId);
+    log.info("removed GameSession <{}>", gameId);
+  }
+
 }
 
