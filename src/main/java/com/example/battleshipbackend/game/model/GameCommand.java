@@ -8,7 +8,7 @@ public class GameCommand {
 
   private GameCommandType type;
   private String gameId;
-  private String row;
-  private String column;
+  private Integer row;
+  private Integer column;
   private List<Ship> ships;
 }

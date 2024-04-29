@@ -87,7 +87,11 @@ public class GameServiceImpl implements GameService {
           session.getId(), game.getId());
       return session.send(Flux.error(new Error("Row and/or column values are missing")));
     }
-
+    if (command.getRow() > 9 || command.getRow() < 0 || command.getColumn() > 9 || command.getColumn() < 0) {
+      log.warn("Tried to strike with wrong values on row and/or column, session <{}>, game id: <{}>",
+          session.getId(), game.getId());
+      return session.send(Flux.error(new Error("Row and/or column values are not valid")));
+    }
     if (game.getGameState() == GameStateType.TURN_PLAYER1 && game.getSessionPlayer1().equals(session)) {
       return handleTurnPlayer1(session, game, command);
     } else if (game.getGameState() == GameStateType.TURN_PLAYER2 && game.getSessionPlayer2().equals(session)) {
@@ -280,9 +284,9 @@ public class GameServiceImpl implements GameService {
 
   private Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
     game.setGameState(GameStateType.TURN_PLAYER2);
-    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow() + command.getColumn());
+    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow().toString() + command.getColumn());
 
-    game.getStrikesPlayer1().add(new Strike(command.getRow() + command.getColumn(), isHit));
+    game.getStrikesPlayer1().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
     if (isHit) {
       if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
         return handleWin(session, game.getSessionPlayer2(), game);
@@ -291,8 +295,8 @@ public class GameServiceImpl implements GameService {
     GameEvent ownEvent = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
-        .strikeRow(command.getRow())
-        .strikeCol(command.getColumn())
+        .strikeRow(command.getRow().toString())
+        .strikeCol(command.getColumn().toString())
         .isHit(isHit)
         .type(GameEventType.TURN_OPPONENT)
         .build();
@@ -305,8 +309,8 @@ public class GameServiceImpl implements GameService {
         GameEvent.builder()
             .ownStrikes(game.getStrikesPlayer2())
             .opponentStrikes(game.getStrikesPlayer1())
-            .strikeRow(command.getRow())
-            .strikeCol(command.getColumn())
+            .strikeRow(command.getRow().toString())
+            .strikeCol(command.getColumn().toString())
             .isHit(isHit)
             .type(GameEventType.TURN_OWN)
             .build(),
@@ -316,9 +320,9 @@ public class GameServiceImpl implements GameService {
 
   private Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
     game.setGameState(GameStateType.TURN_PLAYER1);
-    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow() + command.getColumn());
+    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow().toString() + command.getColumn());
 
-    game.getStrikesPlayer2().add(new Strike(command.getRow() + command.getColumn(), isHit));
+    game.getStrikesPlayer2().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
     if (isHit) {
       if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
         return handleWin(session, game.getSessionPlayer1(), game);
@@ -327,8 +331,8 @@ public class GameServiceImpl implements GameService {
     GameEvent ownEvent = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer2())
         .opponentStrikes(game.getStrikesPlayer1())
-        .strikeRow(command.getRow())
-        .strikeCol(command.getColumn())
+        .strikeRow(command.getRow().toString())
+        .strikeCol(command.getColumn().toString())
         .isHit(isHit)
         .type(GameEventType.TURN_OPPONENT)
         .build();
@@ -341,8 +345,8 @@ public class GameServiceImpl implements GameService {
         GameEvent.builder()
             .ownStrikes(game.getStrikesPlayer1())
             .opponentStrikes(game.getStrikesPlayer2())
-            .strikeRow(command.getRow())
-            .strikeCol(command.getColumn())
+            .strikeRow(command.getRow().toString())
+            .strikeCol(command.getColumn().toString())
             .isHit(isHit)
             .type(GameEventType.TURN_OWN)
             .build(),
