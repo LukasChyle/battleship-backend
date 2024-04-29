@@ -325,7 +325,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
     }
     if (lastMessage) {
       messages.add(session1.send(Mono.empty()).then(session1.close()));
-      messages.add(session2.send(Mono.empty()).then(session1.close()));
+      messages.add(session2.send(Mono.empty()).then(session2.close()));
     }
     return Flux.concat(messages).then();
   }
