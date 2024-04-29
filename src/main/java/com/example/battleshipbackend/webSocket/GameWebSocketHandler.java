@@ -95,6 +95,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
               }
             }
           }
+          log.info("gameSessions: <{}>", gameSessions); // TODO:
         });
   }
 
@@ -304,6 +305,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private Mono<Void> sendMessageToGameSessions(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2,
       boolean lastMessage) {
+    log.error("sendMessage1: {}", event1); // TODO:
+    log.error("sendMessage2: {}", event2); // TODO:
     List<Mono<Void>> messages = new ArrayList<>();
     try {
       messages.add(session1.send(Mono.just(objectMapper.writeValueAsString(event1)).map(session1::textMessage)));
@@ -323,6 +326,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
   }
 
   private Mono<Void> sendMessageToGameSession(GameEvent event, WebSocketSession session) {
+    log.error("sendMessage: {}", event); // TODO:
     try {
       return session.send(Mono.just(objectMapper.writeValueAsString(event)).map(session::textMessage));
     } catch (JsonProcessingException e) {
