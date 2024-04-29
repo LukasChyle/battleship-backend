@@ -6,7 +6,6 @@ import lombok.Getter;
 
 @Getter
 public enum GameEventType {
-    CONNECTED("CONNECTED"),
     WAITING_OPPONENT("WAITING_OPPONENT"),
     TURN_OWN("TURN_OWN"),
     TURN_OPPONENT("TURN_OPPONENT"),

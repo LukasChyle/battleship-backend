@@ -6,8 +6,7 @@ import lombok.Getter;
 public enum GameStateType {
   WAITING_OPPONENT("WAITING_SECOND_PLAYER"),
   TURN_PLAYER1("TURN_PLAYER1"),
-  TURN_PLAYER2("TURN_PLAYER2"),
-  GAME_OVER("GAME_OVER");
+  TURN_PLAYER2("TURN_PLAYER2");
 
   private final String value;
 

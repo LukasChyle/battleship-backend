@@ -1,9 +1,9 @@
 package com.example.battleshipbackend.webSocket;
 
+import com.example.battleshipbackend.game.model.Strike;
 import com.example.battleshipbackend.game.service.GameService;
 import com.example.battleshipbackend.game.model.GameSession;
 import com.example.battleshipbackend.game.model.GameCommand;
-import com.example.battleshipbackend.game.model.GameCommandType;
 import com.example.battleshipbackend.game.model.GameEvent;
 import com.example.battleshipbackend.game.model.GameEventType;
 import com.example.battleshipbackend.game.model.GameStateType;
@@ -11,11 +11,13 @@ import com.example.battleshipbackend.game.model.Ship;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.InvalidObjectException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.prefs.InvalidPreferencesFormatException;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -42,15 +44,15 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   @Override
   public Mono<Void> handle(WebSocketSession session) {
-    log.info("New WebSocketSession <{}>", session.getId());
+    log.info("Created WebSocketSession <{}>", session.getId());
     return session.receive()
         .onErrorResume(throwable -> {
           log.error("WebSocketSession <{}>: <{}>", session.getId(), throwable.toString());
-          if (throwable instanceof IOException) { // FIXME: might need more exception catching to hande all client disconnections, ReactorNettyException?
+          if (throwable instanceof IOException) { // FIXME: might need more exception catching to hande all client disconnections types, ReactorNettyException?
             log.error("Client disconnected from session <{}>", session.getId());
-            return Mono.empty();
+            return Flux.empty();
           }
-          return Mono.error(throwable);
+          return Flux.error(throwable);
         })
         .flatMap(message -> {
           GameCommand gameCommand;
@@ -58,28 +60,26 @@ public class GameWebSocketHandler implements WebSocketHandler {
             gameCommand = objectMapper.readValue(message.getPayloadAsText(), GameCommand.class);
           } catch (JsonProcessingException e) {
             log.error("Cast to GameCommand object error <{}>", e.getMessage());
-            return Flux.error(new RuntimeException(e));
+            return Flux.error(new InvalidObjectException(e.getMessage()));
           }
           log.info("Incoming message <{}>", gameCommand); // TODO: remove after tests
 
-          if (gameCommand.getType() == GameCommandType.STRIKE) {
-            return handleStrikeRequest(session, gameCommand);
-          } else if (gameCommand.getType() == GameCommandType.JOIN) {
-            return handleJoinRequest(session, gameCommand);
-          } else if (gameCommand.getType() == GameCommandType.RECONNECT) {
-            return handleReconnectRequest(session, gameCommand);
-          } else if (gameCommand.getType() == GameCommandType.LEAVE) {
-            return handleLeaveRequest(session, gameCommand);
+          if (gameCommand.getGameId() == null) {
+            gameCommand.setGameId("");
           }
-          // TODO: remove log and change return to Mono.empty() when tests are done.
-          log.error("Could not handle GameCommandType from session <{}>", session.getId());
-          return Mono.just("Could not handle GameCommandType");
 
+          return switch (gameCommand.getType()) {
+            case STRIKE -> handleStrikeRequest(session, gameCommand);
+            case JOIN -> handleJoinRequest(session, gameCommand);
+            case LEAVE -> handleLeaveRequest(session, gameCommand);
+            case RECONNECT -> handleReconnectRequest(session, gameCommand);
+          };
         })
         .then(session.close())
         .doFinally(signal -> {
-          log.info("Closed WebSocketSession <{}>", session.getId());
-          log.info("Removed GameSession <{}>", "gameSessionId");
+          log.info("doFinally: Closed WebSocketSession <{}>", session.getId());
+
+          log.info("doFinally: Removed GameSession <{}>", "gameSessionId");
           //TODO: check if other session in gameSession is still open, else remove gameSession
           //TODO: Remove game session if GAME_OVER
         });
@@ -92,11 +92,11 @@ public class GameWebSocketHandler implements WebSocketHandler {
           GameSession newGame = new GameSession();
           newGame.setId(UUID.randomUUID().toString());
           gameSessions.put(newGame.getId(), newGame);
-          log.info("New GameSession <{}>", newGame.getId());
+          log.info("handleJoinRequest: Created GameSession <{}>", newGame.getId());
           return newGame;
         });
 
-    log.info("WebSocketSession <{}> joined GameSession <{}>", session.getId(), game.getId());
+    log.info("handleJoinRequest: session <{}> joined GameSession <{}>", session.getId(), game.getId());
     setShipsAndPositions(command.getShips(), game);
 
     if (game.getSessionPlayer1() == null) {
@@ -106,6 +106,10 @@ public class GameWebSocketHandler implements WebSocketHandler {
           .type(GameEventType.WAITING_OPPONENT)
           .build(), session);
     } else {
+
+      log.warn("player 1 positions: {}", game.getPositionsPlayer1()); // TODO: remove after tests.
+      log.warn("player 2 positions: {}", game.getPositionsPlayer2());
+
       game.setSessionPlayer2(session);
       game.setGameState(GameStateType.TURN_PLAYER1);
       GameEvent eventPlayer1 = GameEvent.builder()
@@ -119,79 +123,188 @@ public class GameWebSocketHandler implements WebSocketHandler {
           eventPlayer1,
           game.getSessionPlayer1(),
           eventPlayer2,
-          session);
+          session,
+          false);
     }
   }
 
   private Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
     GameSession game = gameSessions.get(command.getGameId());
-    boolean isPlayer1 = game.getSessionPlayer1().equals(session);
+    if (game == null) {
+      log.warn("handleStrikeRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
+      return session.send(Flux.error(new InvalidPreferencesFormatException("Game with that id does not exist")));
+    }
+    if (command.getRow() == null || command.getColumn() == null) {
+      log.warn("handleStrikeRequest: session <{}>, tried to strike without row and/or column values, game id: <{}>",
+          session.getId(), game.getId());
+      return session.send(Flux.error(new Error("row and/or column values are missing")));
+    }
 
-    if ((game.getGameState() == GameStateType.TURN_PLAYER1 && isPlayer1) ||
-        (game.getGameState() == GameStateType.TURN_PLAYER2 && !isPlayer1)) {
+    if (game.getGameState() == GameStateType.TURN_PLAYER1 && game.getSessionPlayer1().equals(session)) {
+      game.setGameState(GameStateType.TURN_PLAYER2);
+      boolean isHit = gameService.getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow() + command.getColumn());
 
-      boolean isHit = false;
-      // TODO: Calculate with strikes and positions if it is a hit (GameService)
-      // TODO: if isHit -> Calculate with strikes and positions if it is a win (GameService)
-      // TODO: When GAME_OVER, close both sessions.
-
-      if (game.getGameState() == GameStateType.TURN_PLAYER1) {
-        game.setGameState(GameStateType.TURN_PLAYER2);
-      } else {
-        game.setGameState(GameStateType.TURN_PLAYER1);
+      game.getStrikesPlayer1().add(new Strike(command.getRow() + command.getColumn(), isHit));
+      if (isHit) {
+        if (gameService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
+          return handleWin(session, game.getSessionPlayer2(), game);
+        }
       }
+      return sendMessageToGameSessions(
+          GameEvent.builder()
+              .ownStrikes(game.getStrikesPlayer1())
+              .opponentStrikes(game.getStrikesPlayer2())
+              .strikeRow(command.getRow())
+              .strikeCol(command.getColumn())
+              .isHit(isHit)
+              .type(GameEventType.TURN_OPPONENT)
+              .build(),
+          session,
+          GameEvent.builder()
+              .ownStrikes(game.getStrikesPlayer2())
+              .opponentStrikes(game.getStrikesPlayer1())
+              .strikeRow(command.getRow())
+              .strikeCol(command.getColumn())
+              .isHit(isHit)
+              .type(GameEventType.TURN_OWN)
+              .build(),
+          game.getSessionPlayer2(),
+          false);
 
-      log.warn("player 1 {}", game.getStrikesPlayer1()); // TODO: Remove when tests is over
-      log.warn("player 2 {}", game.getStrikesPlayer1());
+    } else if (game.getGameState() == GameStateType.TURN_PLAYER2 && game.getSessionPlayer2().equals(session)) {
+      game.setGameState(GameStateType.TURN_PLAYER1);
+      boolean isHit = gameService.getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow() + command.getColumn());
 
-      GameEvent eventPlayer1 = GameEvent.builder()
-          .ownStrikes(game.getStrikesPlayer1())
-          .opponentStrikes(game.getStrikesPlayer2())
-          .strikeRow(command.getRow())
-          .strikeCol(command.getColumn())
-          .isHit(isHit)
-          .build();
-      GameEvent eventPlayer2 = GameEvent.builder()
-          .ownStrikes(game.getStrikesPlayer2())
-          .opponentStrikes(game.getStrikesPlayer1())
-          .strikeRow(command.getRow())
-          .strikeCol(command.getColumn())
-          .isHit(isHit)
-          .build();
+      game.getStrikesPlayer2().add(new Strike(command.getRow() + command.getColumn(), isHit));
+      if (isHit) {
+        if (gameService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
+          return handleWin(session, game.getSessionPlayer1(), game);
+        }
+      }
+      return sendMessageToGameSessions(
+          GameEvent.builder()
+              .ownStrikes(game.getStrikesPlayer1())
+              .opponentStrikes(game.getStrikesPlayer2())
+              .strikeRow(command.getRow())
+              .strikeCol(command.getColumn())
+              .isHit(isHit)
+              .type(GameEventType.TURN_OWN)
+              .build(),
+          game.getSessionPlayer1(),
+          GameEvent.builder()
+              .ownStrikes(game.getStrikesPlayer2())
+              .opponentStrikes(game.getStrikesPlayer1())
+              .strikeRow(command.getRow())
+              .strikeCol(command.getColumn())
+              .isHit(isHit)
+              .type(GameEventType.TURN_OPPONENT)
+              .build(),
+          session,
+          false);
+    }
+    if (!game.getSessionPlayer1().equals(session) && !game.getSessionPlayer2().equals(session)) {
+      log.warn("handleStrikeRequest: wrong session <{}> for game: <{}>", session.getId(),
+          game.toString());
+      return session.send(Flux.error(new Error("Wrong session for this game")));
+    }
+    log.warn("handleStrikeRequest: session <{}> tried to strike on opponents turn, game id: <{}>",
+        session.getId(), game.getId());
+    return session.send(Flux.error(new Error("Not your turn")));
+  }
 
-      if (isPlayer1) {
-        eventPlayer1.setType(GameEventType.TURN_OPPONENT);
-        eventPlayer2.setType(GameEventType.TURN_OWN);
-        return sendMessageToGameSessions(eventPlayer1, session, eventPlayer2, game.getSessionPlayer2());
+  private Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command) {
+    GameSession game = gameSessions.get(command.getGameId());
+    if (game == null) {
+      log.warn("handleReconnectRequest: game did not exist, session <{}> tried to reconnect with game id <{}>", session.getId(),
+          command.getGameId());
+      return sendMessageToGameSession(GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build(), session);
+    }
+    if (game.getSessionPlayer1() != null && game.getSessionPlayer2() != null) {
+      log.warn("handleReconnectRequest: session <{}> tried to reconnect to a game with active sessions, game: <{}>", session.getId(),
+          game.toString());
+      return session.send(Flux.error(new Error("Both sessions for this game are active")));
+    }
+    GameEvent event = GameEvent.builder()
+        .ownStrikes(game.getStrikesPlayer1())
+        .opponentStrikes(game.getStrikesPlayer2())
+        .build();
+
+    if (game.getSessionPlayer1() == null) {
+      game.setSessionPlayer1(session);
+      event.setShips(game.getShipsPlayer1());
+      if (game.getGameState() == GameStateType.TURN_PLAYER1) {
+        event.setType(GameEventType.TURN_OWN);
       } else {
-        eventPlayer1.setType(GameEventType.TURN_OWN);
-        eventPlayer2.setType(GameEventType.TURN_OPPONENT);
-        return sendMessageToGameSessions(eventPlayer1, game.getSessionPlayer1(), eventPlayer2, session);
+        event.setType(GameEventType.TURN_OPPONENT);
+      }
+    } else if (game.getSessionPlayer2() == null) {
+      game.setSessionPlayer2(session);
+      event.setShips(game.getShipsPlayer2());
+      if (game.getGameState() == GameStateType.TURN_PLAYER2) {
+        event.setType(GameEventType.TURN_OWN);
+      } else {
+        event.setType(GameEventType.TURN_OPPONENT);
       }
     }
-    return session.send(Mono.error(new RuntimeException("Not your turn or wrong data given")));
+    log.info("handleReconnectRequest: session <{}> reconnected to game: <{}>", session.getId(), game.toString());
+    return sendMessageToGameSession(event, session);
   }
 
-  private Mono<String> handleReconnectRequest(WebSocketSession session, GameCommand command) {
-    // TODO: RECONNECT, with game id and previous session id rejoin the game if game status is not GAME_OVER.
-    return Mono.just("Reconnect request");
+  private Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command) {
+    GameSession game = gameSessions.get(command.getGameId());
+    if (game == null) {
+      log.warn("handleLeaveRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
+      return session.send(Flux.error(new Error("Game with that id does not exist")));
+    }
+    gameSessions.remove(game.getId());
+    if (game.getSessionPlayer2() == null && game.getSessionPlayer1().equals(session)) {
+      gameSessions.remove(game.getId());
+      log.info("handleLeaveRequest: Removed GameSession <{}>", game.getId());
+      return Mono.empty();
+    }
+    GameEvent event = GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build();
+    if (game.getSessionPlayer1().equals(session)) {
+      return sendMessageToGameSessions(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true);
+    } else if (game.getSessionPlayer2().equals(session)) {
+      return sendMessageToGameSessions(event, game.getSessionPlayer1(), GameEvent.builder().build(), session, true);
+    }
+    log.warn("handleLeaveRequest: wrong session <{}> for game: <{}>", session.getId(),
+        game.toString());
+    return session.send(Flux.error(new Error("Wrong session for this game")));
   }
 
-  private Mono<String> handleLeaveRequest(WebSocketSession session, GameCommand command) {
-    // TODO: Player wants to leave, send messages to players and chane game status to GAME_OVER and close both sessions.
-    return Mono.empty();
+  private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
+    gameSessions.remove(game.getId());
+    log.info("handleWin: Removed GameSession <{}>", game.getId());
+    GameEvent event1 = GameEvent.builder()
+        .ownStrikes(game.getStrikesPlayer1())
+        .opponentStrikes(game.getStrikesPlayer2())
+        .type(GameEventType.WON)
+        .build();
+    GameEvent event2 = GameEvent.builder()
+        .ownStrikes(game.getStrikesPlayer2())
+        .opponentStrikes(game.getStrikesPlayer1())
+        .type(GameEventType.LOST)
+        .build();
+    return sendMessageToGameSessions(event1, winnerSession, event2, loserSession, true);
   }
 
-  private Mono<Void> sendMessageToGameSessions(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2) {
+  private Mono<Void> sendMessageToGameSessions(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2,
+      boolean lastMessage) {
     List<Mono<Void>> messages = new ArrayList<>();
     try {
       messages.add(session1.send(Mono.just(objectMapper.writeValueAsString(event1)).map(session1::textMessage)));
       messages.add(session2.send(Mono.just(objectMapper.writeValueAsString(event2)).map(session2::textMessage)));
+
     } catch (JsonProcessingException e) {
-      log.error("Error processing JSON for WebSocket message: {}", e.getMessage());
+      log.error("sendMessageToGameSessions: Error processing JSON for WebSocket message: {}", e.getMessage());
       messages = new ArrayList<>();
       messages.add(session1.send(Mono.error(new RuntimeException(e))));
       messages.add(session2.send(Mono.error(new RuntimeException(e))));
+    }
+    if (lastMessage) {
+      messages.add(session1.send(Mono.empty()));
+      messages.add(session2.send(Mono.empty()));
     }
     return Flux.concat(messages).then();
   }
@@ -200,7 +313,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
     try {
       return session.send(Mono.just(objectMapper.writeValueAsString(event)).map(session::textMessage));
     } catch (JsonProcessingException e) {
-      log.error("Error processing JSON for WebSocket message: {}", e.getMessage());
+      log.error("sendMessageToGameSession: Error processing JSON for WebSocket message: {}", e.getMessage());
       return Mono.error(new RuntimeException(e));
     }
   }
