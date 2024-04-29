@@ -78,30 +78,19 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .then(session.close())
         .doFinally(signal -> {
           log.info("doFinally: Closed WebSocketSession <{}>", session.getId());
-
-          String gameId = null;
-          boolean isPlayer1 = false;
-          boolean removeGameSession = false;
           for (var entry : gameSessions.entrySet()) {
             if ((entry.getValue().getSessionPlayer1() == null && entry.getValue().getSessionPlayer2().getId().equals(session.getId())) ||
                 (entry.getValue().getSessionPlayer2() == null && entry.getValue().getSessionPlayer1().getId().equals(session.getId()))) {
-              gameId = entry.getKey();
-              removeGameSession = true;
-            } else if (entry.getValue().getSessionPlayer1().getId().equals(session.getId()) || entry.getValue().getSessionPlayer2().getId()
-                .equals(session.getId())) {
-              gameId = entry.getKey();
-              isPlayer1 = entry.getValue().getSessionPlayer1().getId().equals(session.getId());
-            }
-          }
-          if (gameId != null) {
-            if (removeGameSession) {
+              String gameId = entry.getKey();
               gameSessions.remove(gameId);
               log.info("doFinally: Removed GameSession <{}>", gameId);
             } else {
-              if (isPlayer1) {
+              if (entry.getValue().getSessionPlayer1().getId().equals(session.getId())) {
+                String gameId = entry.getKey();
                 gameSessions.get(gameId).setSessionPlayer1(null);
                 log.info("doFinally: GameSession <{}>, removed SessionPlayer1", gameId);
-              } else {
+              } else if (entry.getValue().getSessionPlayer2().getId().equals(session.getId())) {
+                String gameId = entry.getKey();
                 gameSessions.get(gameId).setSessionPlayer2(null);
                 log.info("doFinally: GameSession <{}>, removed SessionPlayer2", gameId);
               }
