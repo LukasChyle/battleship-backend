@@ -106,20 +106,14 @@ public class GameWebSocketHandler implements WebSocketHandler {
     }
     GameSession game = gameSessions.values().stream()
         .filter(e -> e.getSessionPlayer2() == null)
-        .findFirst().orElseGet(() -> {
-          GameSession newGame = new GameSession();
-          newGame.setId(UUID.randomUUID().toString());
-          gameSessions.put(newGame.getId(), newGame);
-          log.info("Created new GameSession <{}>", newGame.getId());
-          return newGame;
-        });
+        .findFirst().orElseGet(this::createGameSession);
 
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
     gameService.setShipsAndPositions(command.getShips(), game);
 
     if (game.getSessionPlayer1() == null) {
       game.setSessionPlayer1(session);
-      return sendMessageToGameSession(GameEvent.builder()
+      return getMessageToGameSession(GameEvent.builder()
           .gameId(game.getId())
           .type(GameEventType.WAITING_OPPONENT)
           .build(), session);
@@ -133,7 +127,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
           .gameId(game.getId())
           .type(GameEventType.TURN_OPPONENT)
           .build();
-      return sendMessageToGameSessions(
+      return getMessagesToGameSession(
           eventPlayer1,
           game.getSessionPlayer1(),
           eventPlayer2,
@@ -173,9 +167,9 @@ public class GameWebSocketHandler implements WebSocketHandler {
           .type(GameEventType.TURN_OPPONENT)
           .build();
       if (game.getSessionPlayer2() == null) {
-        return sendMessageToGameSession(ownEvent, session);
+        return getMessageToGameSession(ownEvent, session);
       }
-      return sendMessageToGameSessions(
+      return getMessagesToGameSession(
           ownEvent,
           session,
           GameEvent.builder()
@@ -208,9 +202,9 @@ public class GameWebSocketHandler implements WebSocketHandler {
           .type(GameEventType.TURN_OPPONENT)
           .build();
       if (game.getSessionPlayer1() == null) {
-        return sendMessageToGameSession(ownEvent, session);
+        return getMessageToGameSession(ownEvent, session);
       }
-      return sendMessageToGameSessions(
+      return getMessagesToGameSession(
           ownEvent,
           session,
           GameEvent.builder()
@@ -239,7 +233,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
     if (game == null) {
       log.warn("Game did not exist, session <{}> tried to reconnect with game id <{}>", session.getId(),
           command.getGameId());
-      return sendMessageToGameSession(GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build(), session);
+      return getMessageToGameSession(GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build(), session);
     }
     if (game.getSessionPlayer1() != null && game.getSessionPlayer2() != null) {
       log.warn("Tried to reconnect to a game with active sessions, session <{}>, game: <{}>", session.getId(),
@@ -269,7 +263,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
       }
     }
     log.info("Session <{}> reconnected to game <{}>", session.getId(), game.toString());
-    return sendMessageToGameSession(event, session);
+    return getMessageToGameSession(event, session);
   }
 
   private Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command) {
@@ -284,9 +278,9 @@ public class GameWebSocketHandler implements WebSocketHandler {
     }
     GameEvent event = GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build();
     if (game.getSessionPlayer1().equals(session)) {
-      return sendMessageToGameSessions(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true);
+      return getMessagesToGameSession(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true);
     } else if (game.getSessionPlayer2().equals(session)) {
-      return sendMessageToGameSessions(event, game.getSessionPlayer1(), GameEvent.builder().build(), session, true);
+      return getMessagesToGameSession(event, game.getSessionPlayer1(), GameEvent.builder().build(), session, true);
     }
     log.warn("handleLeaveRequest: wrong session <{}> for game: <{}>", session.getId(),
         game.toString());
@@ -295,7 +289,6 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
     removeGameSession(game.getId());
-
     GameEvent event1 = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
@@ -306,10 +299,10 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .opponentStrikes(game.getStrikesPlayer1())
         .type(GameEventType.LOST)
         .build();
-    return sendMessageToGameSessions(event1, winnerSession, event2, loserSession, true);
+    return getMessagesToGameSession(event1, winnerSession, event2, loserSession, true);
   }
 
-  private Mono<Void> sendMessageToGameSessions(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2,
+  private Mono<Void> getMessagesToGameSession(GameEvent event1, WebSocketSession session1, GameEvent event2, WebSocketSession session2,
       boolean lastMessage) {
     List<Mono<Void>> messages = new ArrayList<>();
     try {
@@ -317,7 +310,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
       messages.add(session2.send(Mono.just(objectMapper.writeValueAsString(event2)).map(session2::textMessage)));
 
     } catch (JsonProcessingException e) {
-      log.error("sendMessageToGameSessions: error processing JSON for WebSocket message: {}", e.getMessage());
+      log.error("getMessagesToGameSession: error processing JSON for WebSocket message: {}", e.getMessage());
       messages = new ArrayList<>();
       messages.add(session1.send(Mono.error(new RuntimeException(e))));
       messages.add(session2.send(Mono.error(new RuntimeException(e))));
@@ -329,13 +322,21 @@ public class GameWebSocketHandler implements WebSocketHandler {
     return Flux.concat(messages).then();
   }
 
-  private Mono<Void> sendMessageToGameSession(GameEvent event, WebSocketSession session) {
+  private Mono<Void> getMessageToGameSession(GameEvent event, WebSocketSession session) {
     try {
       return session.send(Mono.just(objectMapper.writeValueAsString(event)).map(session::textMessage));
     } catch (JsonProcessingException e) {
-      log.error("sendMessageToGameSession: error processing JSON for WebSocket message: {}", e.getMessage());
+      log.error("getMessageToGameSession: error processing JSON for WebSocket message: {}", e.getMessage());
       return Mono.error(new RuntimeException(e));
     }
+  }
+
+  private GameSession createGameSession() {
+    GameSession newGame = new GameSession();
+    newGame.setId(UUID.randomUUID().toString());
+    gameSessions.put(newGame.getId(), newGame);
+    log.info("Created new GameSession <{}>", newGame.getId());
+    return newGame;
   }
 
   private void removeGameSession(String gameId) {

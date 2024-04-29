@@ -12,6 +12,4 @@ public interface GameService {
   boolean getStrikeMatchPosition(List<String> positions, String Strike);
 
   boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes);
-
-
 }
