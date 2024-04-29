@@ -6,7 +6,7 @@ import lombok.Data;
 public class Ship {
 
   private String id;
-  private boolean isHorizontal;
+  private Boolean isHorizontal;
   private int length;
   private String row;
   private String col;

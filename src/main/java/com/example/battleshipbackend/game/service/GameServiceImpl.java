@@ -14,7 +14,7 @@ public class GameServiceImpl implements GameService {
     List<String> positions = new ArrayList<>();
     ships.forEach(e -> {
       for (int i = 0; i < e.getLength(); i++) {
-        if (e.isHorizontal()) {
+        if (e.getIsHorizontal()) {
           positions.add(e.getRow() + (Integer.parseInt(e.getCol()) + i));
         } else {
           positions.add((Integer.parseInt(e.getRow()) + i) + e.getCol());

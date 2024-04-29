@@ -83,13 +83,14 @@ public class GameWebSocketHandler implements WebSocketHandler {
           boolean isPlayer1 = false;
           boolean removeGameSession = false;
           for (var entry : gameSessions.entrySet()) {
-            if (entry.getValue().getSessionPlayer1().getId().equals(session.getId()) || entry.getValue().getSessionPlayer2().getId().equals(session.getId())) {
+            if ((entry.getValue().getSessionPlayer1() == null && entry.getValue().getSessionPlayer2().getId().equals(session.getId())) ||
+                (entry.getValue().getSessionPlayer2() == null && entry.getValue().getSessionPlayer1().getId().equals(session.getId()))) {
               gameId = entry.getKey();
-              if (entry.getValue().getSessionPlayer1() == null || entry.getValue().getSessionPlayer2() == null) {
-                removeGameSession = true;
-              } else {
-                isPlayer1 = entry.getValue().getSessionPlayer1().getId().equals(session.getId());
-              }
+              removeGameSession = true;
+            } else if (entry.getValue().getSessionPlayer1().getId().equals(session.getId()) || entry.getValue().getSessionPlayer2().getId()
+                .equals(session.getId())) {
+              gameId = entry.getKey();
+              isPlayer1 = entry.getValue().getSessionPlayer1().getId().equals(session.getId());
             }
           }
           if (gameId != null) {
@@ -131,10 +132,6 @@ public class GameWebSocketHandler implements WebSocketHandler {
           .type(GameEventType.WAITING_OPPONENT)
           .build(), session);
     } else {
-
-      log.warn("player 1 positions: {}", game.getPositionsPlayer1()); // TODO: remove after tests.
-      log.warn("player 2 positions: {}", game.getPositionsPlayer2());
-
       game.setSessionPlayer2(session);
       game.setGameState(GameStateType.TURN_PLAYER1);
       GameEvent eventPlayer1 = GameEvent.builder()
@@ -175,15 +172,19 @@ public class GameWebSocketHandler implements WebSocketHandler {
           return handleWin(session, game.getSessionPlayer2(), game);
         }
       }
+      GameEvent ownEvent = GameEvent.builder()
+          .ownStrikes(game.getStrikesPlayer1())
+          .opponentStrikes(game.getStrikesPlayer2())
+          .strikeRow(command.getRow())
+          .strikeCol(command.getColumn())
+          .isHit(isHit)
+          .type(GameEventType.TURN_OPPONENT)
+          .build();
+      if (game.getSessionPlayer2() == null) {
+        return sendMessageToGameSession(ownEvent, session);
+      }
       return sendMessageToGameSessions(
-          GameEvent.builder()
-              .ownStrikes(game.getStrikesPlayer1())
-              .opponentStrikes(game.getStrikesPlayer2())
-              .strikeRow(command.getRow())
-              .strikeCol(command.getColumn())
-              .isHit(isHit)
-              .type(GameEventType.TURN_OPPONENT)
-              .build(),
+          ownEvent,
           session,
           GameEvent.builder()
               .ownStrikes(game.getStrikesPlayer2())
@@ -206,7 +207,20 @@ public class GameWebSocketHandler implements WebSocketHandler {
           return handleWin(session, game.getSessionPlayer1(), game);
         }
       }
+      GameEvent ownEvent = GameEvent.builder()
+          .ownStrikes(game.getStrikesPlayer2())
+          .opponentStrikes(game.getStrikesPlayer1())
+          .strikeRow(command.getRow())
+          .strikeCol(command.getColumn())
+          .isHit(isHit)
+          .type(GameEventType.TURN_OPPONENT)
+          .build();
+      if (game.getSessionPlayer1() == null) {
+        return sendMessageToGameSession(ownEvent, session);
+      }
       return sendMessageToGameSessions(
+          ownEvent,
+          session,
           GameEvent.builder()
               .ownStrikes(game.getStrikesPlayer1())
               .opponentStrikes(game.getStrikesPlayer2())
@@ -216,15 +230,6 @@ public class GameWebSocketHandler implements WebSocketHandler {
               .type(GameEventType.TURN_OWN)
               .build(),
           game.getSessionPlayer1(),
-          GameEvent.builder()
-              .ownStrikes(game.getStrikesPlayer2())
-              .opponentStrikes(game.getStrikesPlayer1())
-              .strikeRow(command.getRow())
-              .strikeCol(command.getColumn())
-              .isHit(isHit)
-              .type(GameEventType.TURN_OPPONENT)
-              .build(),
-          session,
           false);
     }
     if (!game.getSessionPlayer1().equals(session) && !game.getSessionPlayer2().equals(session)) {
@@ -285,7 +290,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
     if (game.getSessionPlayer2() == null && game.getSessionPlayer1().equals(session)) {
       gameSessions.remove(game.getId());
       log.info("handleLeaveRequest: Removed GameSession <{}>", game.getId());
-      return Mono.empty();
+      return Mono.empty().then(session.close());
     }
     GameEvent event = GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build();
     if (game.getSessionPlayer1().equals(session)) {
@@ -330,8 +335,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
       messages.add(session2.send(Mono.error(new RuntimeException(e))));
     }
     if (lastMessage) {
-      messages.add(session1.send(Mono.empty()));
-      messages.add(session2.send(Mono.empty()));
+      messages.add(session1.send(Mono.empty()).then(session1.close()));
+      messages.add(session2.send(Mono.empty()).then(session1.close()));
     }
     return Flux.concat(messages).then();
   }
