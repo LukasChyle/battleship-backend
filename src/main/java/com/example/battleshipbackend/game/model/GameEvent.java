@@ -14,6 +14,6 @@ public class GameEvent {
   private String strikeRow;
   private String strikeCol;
   private boolean isHit;
-  private GameEventType type;
+  private GameEventType eventType;
   private List<Ship> ships;
 }
