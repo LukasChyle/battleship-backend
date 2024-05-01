@@ -5,7 +5,6 @@ import com.example.battleshipbackend.game.model.GameCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.io.InvalidObjectException;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -33,7 +32,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
     return session.receive()
         .onErrorResume(throwable -> {
           log.error("WebSocketSession <{}>: <{}>", session.getId(), throwable.toString());
-          if (throwable instanceof IOException) { // FIXME: might need more exception catching to hande all client disconnections types, ReactorNettyException?
+          if (throwable instanceof IOException) { // Todo: might need more exception catching to hande all types of client disconnections, ReactorNettyException?
             log.error("Client disconnected from session <{}>", session.getId());
             return Flux.empty();
           }
@@ -45,7 +44,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
             command = objectMapper.readValue(message.getPayloadAsText(), GameCommand.class);
           } catch (JsonProcessingException e) {
             log.error("Cast to GameCommand object error <{}>", e.getMessage());
-            return Flux.error(new InvalidObjectException(e.getMessage()));
+            return session.send(Mono.just("Error: could not convert json to GameCommand object").map(session::textMessage));
           }
           if (command.getGameId() == null) {
             command.setGameId("");
