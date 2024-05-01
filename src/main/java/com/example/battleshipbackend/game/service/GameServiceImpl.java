@@ -125,6 +125,7 @@ public class GameServiceImpl implements GameService {
     GameEvent event = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
+        .gameId(game.getId())
         .build();
 
     if (!game.isPlayer1Connected()) {
@@ -280,9 +281,9 @@ public class GameServiceImpl implements GameService {
     ships.forEach(e -> {
       for (int i = 0; i < e.getLength(); i++) {
         if (e.getIsHorizontal()) {
-          positions.add(e.getRow() + (Integer.parseInt(e.getCol()) + i));
+          positions.add(String.valueOf(e.getRow()) + (e.getCol() + i));
         } else {
-          positions.add((Integer.parseInt(e.getRow()) + i) + e.getCol());
+          positions.add(String.valueOf((e.getRow() + i)) + e.getCol());
         }
       }
     });

@@ -8,6 +8,6 @@ public class Ship {
   private String id;
   private Boolean isHorizontal;
   private int length;
-  private String row;
-  private String col;
+  private int row;
+  private int col;
 }
