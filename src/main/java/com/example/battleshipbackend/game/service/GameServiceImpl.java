@@ -130,7 +130,7 @@ public class GameServiceImpl implements GameService {
       log.warn("LeaveRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
       return getStringToMessage("Game with that id does not exist", session);
     }
-    if (game.isPlayer2Connected() && game.getSessionPlayer1().equals(session)) {
+    if (!game.isPlayer2Connected() && game.getSessionPlayer1().equals(session)) {
       return Mono.empty().then(session.close());
     }
     GameEvent event = GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build();
