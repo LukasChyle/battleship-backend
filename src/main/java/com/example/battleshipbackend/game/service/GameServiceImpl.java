@@ -53,18 +53,18 @@ public class GameServiceImpl implements GameService {
       game.setPlayer1Connected(true);
       return getGameEventToMessage(GameEvent.builder()
           .gameId(game.getId())
-          .type(GameEventType.WAITING_OPPONENT)
+          .eventType(GameEventType.WAITING_OPPONENT)
           .build(), session);
     } else {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       game.setGameState(GameStateType.TURN_PLAYER1);
       GameEvent eventPlayer1 = GameEvent.builder()
-          .type(GameEventType.TURN_OWN)
+          .eventType(GameEventType.TURN_OWN)
           .build();
       GameEvent eventPlayer2 = GameEvent.builder()
           .gameId(game.getId())
-          .type(GameEventType.TURN_OPPONENT)
+          .eventType(GameEventType.TURN_OPPONENT)
           .build();
       return getGameEventsToMessages(
           eventPlayer1,
@@ -80,7 +80,7 @@ public class GameServiceImpl implements GameService {
     GameSession game = gameSessions.get(command.getGameId());
     if (game == null) {
       log.warn("Game did not exist (anymore), session <{}> tried to reconnect with game id <{}>", session.getId(), command.getGameId());
-      return getGameEventToMessage(GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build(), session);
+      return getGameEventToMessage(GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build(), session);
     }
     if (game.isPlayer1Connected() && game.isPlayer2Connected()) {
       log.warn("Tried to reconnect to a game with active sessions, session <{}>, game: <{}>", session.getId(),
@@ -99,9 +99,9 @@ public class GameServiceImpl implements GameService {
           .ships(game.getShipsPlayer1())
           .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER1) {
-        event.setType(GameEventType.TURN_OWN);
+        event.setEventType(GameEventType.TURN_OWN);
       } else {
-        event.setType(GameEventType.TURN_OPPONENT);
+        event.setEventType(GameEventType.TURN_OPPONENT);
       }
       return getGameEventToMessage(event, session);
     } else {
@@ -115,9 +115,9 @@ public class GameServiceImpl implements GameService {
           .ships(game.getShipsPlayer2())
           .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER2) {
-        event.setType(GameEventType.TURN_OWN);
+        event.setEventType(GameEventType.TURN_OWN);
       } else {
-        event.setType(GameEventType.TURN_OPPONENT);
+        event.setEventType(GameEventType.TURN_OPPONENT);
       }
       return getGameEventToMessage(event, session);
     }
@@ -133,7 +133,7 @@ public class GameServiceImpl implements GameService {
     if (game.isPlayer2Connected() && game.getSessionPlayer1().equals(session)) {
       return Mono.empty().then(session.close());
     }
-    GameEvent event = GameEvent.builder().type(GameEventType.OPPONENT_LEFT).build();
+    GameEvent event = GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build();
     if (game.getSessionPlayer1().equals(session)) {
       removeGameSession(game.getId());
       return getGameEventsToMessages(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true);
@@ -217,7 +217,7 @@ public class GameServiceImpl implements GameService {
         .strikeRow(command.getRow().toString())
         .strikeCol(command.getColumn().toString())
         .isHit(isHit)
-        .type(GameEventType.TURN_OPPONENT)
+        .eventType(GameEventType.TURN_OPPONENT)
         .build();
     if (!game.isPlayer2Connected()) {
       return getGameEventToMessage(ownEvent, session);
@@ -231,7 +231,7 @@ public class GameServiceImpl implements GameService {
             .strikeRow(command.getRow().toString())
             .strikeCol(command.getColumn().toString())
             .isHit(isHit)
-            .type(GameEventType.TURN_OWN)
+            .eventType(GameEventType.TURN_OWN)
             .build(),
         game.getSessionPlayer2(),
         false);
@@ -257,7 +257,7 @@ public class GameServiceImpl implements GameService {
         .strikeRow(command.getRow().toString())
         .strikeCol(command.getColumn().toString())
         .isHit(isHit)
-        .type(GameEventType.TURN_OPPONENT)
+        .eventType(GameEventType.TURN_OPPONENT)
         .build();
     if (!game.isPlayer1Connected()) {
       return getGameEventToMessage(ownEvent, session);
@@ -271,7 +271,7 @@ public class GameServiceImpl implements GameService {
             .strikeRow(command.getRow().toString())
             .strikeCol(command.getColumn().toString())
             .isHit(isHit)
-            .type(GameEventType.TURN_OWN)
+            .eventType(GameEventType.TURN_OWN)
             .build(),
         game.getSessionPlayer1(),
         false);
@@ -320,12 +320,12 @@ public class GameServiceImpl implements GameService {
     GameEvent event1 = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
-        .type(GameEventType.WON)
+        .eventType(GameEventType.WON)
         .build();
     GameEvent event2 = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer2())
         .opponentStrikes(game.getStrikesPlayer1())
-        .type(GameEventType.LOST)
+        .eventType(GameEventType.LOST)
         .build();
     return getGameEventsToMessages(event1, winnerSession, event2, loserSession, true);
   }
