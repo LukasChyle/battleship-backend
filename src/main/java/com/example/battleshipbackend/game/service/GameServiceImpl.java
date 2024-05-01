@@ -122,35 +122,40 @@ public class GameServiceImpl implements GameService {
           game.toString());
       return session.send(Flux.error(new Error("Both sessions for this game are active")));
     }
-    GameEvent event = GameEvent.builder()
-        .ownStrikes(game.getStrikesPlayer1())
-        .opponentStrikes(game.getStrikesPlayer2())
-        .gameId(game.getId())
-        .build();
 
     if (!game.isPlayer1Connected()) {
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
       log.info("Player1 reconnected to GameSession <{}>", command.getGameId());
-      event.setShips(game.getShipsPlayer1());
+      GameEvent event = GameEvent.builder()
+          .ownStrikes(game.getStrikesPlayer1())
+          .opponentStrikes(game.getStrikesPlayer2())
+          .gameId(game.getId())
+          .ships(game.getShipsPlayer1())
+          .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER1) {
         event.setType(GameEventType.TURN_OWN);
       } else {
         event.setType(GameEventType.TURN_OPPONENT);
       }
-    } else if (!game.isPlayer2Connected()) {
+      return getMessageToGameSession(event, session);
+    } else {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       log.info("Player2 reconnected to GameSession <{}>", command.getGameId());
-      event.setShips(game.getShipsPlayer2());
+      GameEvent event = GameEvent.builder()
+          .ownStrikes(game.getStrikesPlayer2())
+          .opponentStrikes(game.getStrikesPlayer1())
+          .gameId(game.getId())
+          .ships(game.getShipsPlayer2())
+          .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER2) {
         event.setType(GameEventType.TURN_OWN);
       } else {
         event.setType(GameEventType.TURN_OPPONENT);
       }
+      return getMessageToGameSession(event, session);
     }
-    log.info("Session <{}> reconnected to game <{}>", session.getId(), game.toString());
-    return getMessageToGameSession(event, session);
   }
 
   @Override
@@ -292,7 +297,7 @@ public class GameServiceImpl implements GameService {
 
   public Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
     if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
-      return session.send(Flux.error(new Error("Can't hit same position twice")));
+      return session.send(Mono.just("Can't hit same position twice").map(session::textMessage));
     }
 
     game.setGameState(GameStateType.TURN_PLAYER2);
@@ -312,7 +317,7 @@ public class GameServiceImpl implements GameService {
         .isHit(isHit)
         .type(GameEventType.TURN_OPPONENT)
         .build();
-    if (game.getSessionPlayer2() == null) {
+    if (!game.isPlayer2Connected()) {
       return getMessageToGameSession(ownEvent, session);
     }
     return getMessagesToGameSession(
@@ -332,7 +337,7 @@ public class GameServiceImpl implements GameService {
 
   public Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
     if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
-      return session.send(Flux.error(new Error("Can't hit same position twice")));
+      return session.send(Mono.just("Can't hit same position twice").map(session::textMessage));
     }
 
     game.setGameState(GameStateType.TURN_PLAYER1);
@@ -352,7 +357,7 @@ public class GameServiceImpl implements GameService {
         .isHit(isHit)
         .type(GameEventType.TURN_OPPONENT)
         .build();
-    if (game.getSessionPlayer1() == null) {
+    if (!game.isPlayer1Connected()) {
       return getMessageToGameSession(ownEvent, session);
     }
     return getMessagesToGameSession(
