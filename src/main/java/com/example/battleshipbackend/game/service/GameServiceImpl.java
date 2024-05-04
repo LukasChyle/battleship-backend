@@ -88,8 +88,8 @@ public class GameServiceImpl implements GameService {
   public Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command) {
     GameSession game = gameSessions.get(command.getGameId());
     if (game == null) {
-      log.warn("Game did not exist (anymore), session <{}> tried to reconnect with game id <{}>", session.getId(), command.getGameId());
-      return getGameEventToMessage(GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build(), session, true);
+      log.warn("Game do not exist, session <{}> tried to reconnect with game id <{}>", session.getId(), command.getGameId());
+      return getGameEventToMessage(GameEvent.builder().eventType(GameEventType.NO_GAME).build(), session, true);
     }
     if (game.isPlayer1Connected() && game.isPlayer2Connected()) {
       log.warn("Tried to reconnect to a game with active sessions, session <{}>, game: <{}>", session.getId(),
@@ -348,7 +348,7 @@ public class GameServiceImpl implements GameService {
   }
 
   private GameSession createGameSession() {
-    GameSession newGame = new GameSession(executorService);
+    GameSession newGame = new GameSession(executorService, objectMapper);
     newGame.setId(UUID.randomUUID().toString());
     gameSessions.put(newGame.getId(), newGame);
     log.info("Created new GameSession <{}>", newGame.getId());
