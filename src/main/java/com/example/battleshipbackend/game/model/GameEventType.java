@@ -11,7 +11,10 @@ public enum GameEventType {
     TURN_OPPONENT("TURN_OPPONENT"),
     WON("WON"),
     LOST("LOST"),
-    OPPONENT_LEFT("OPPONENT_LEFT");
+    OPPONENT_LEFT("OPPONENT_LEFT"),
+    TIMEOUT_OWN("TIMEOUT_OWN"),
+    TIMEOUT_OPPONENT("TIMEOUT_OPPONENT"),
+    NO_GAME("NO_GAME");
 
     private final String value;
 

@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import reactor.core.publisher.Mono;
 @Service
 public class GameServiceImpl implements GameService {
 
+  private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
   private final ObjectMapper objectMapper;
 
   @Autowired
@@ -54,17 +57,23 @@ public class GameServiceImpl implements GameService {
       return getGameEventToMessage(GameEvent.builder()
           .gameId(game.getId())
           .eventType(GameEventType.WAITING_OPPONENT)
-          .build(), session);
+          .build(),
+          session,
+          false);
     } else {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
+      game.startTimer();
+
       game.setGameState(GameStateType.TURN_PLAYER1);
       GameEvent eventPlayer1 = GameEvent.builder()
           .eventType(GameEventType.TURN_OWN)
+          .timeLeft(game.getTimeLeft())
           .build();
       GameEvent eventPlayer2 = GameEvent.builder()
           .gameId(game.getId())
           .eventType(GameEventType.TURN_OPPONENT)
+          .timeLeft(game.getTimeLeft())
           .build();
       return getGameEventsToMessages(
           eventPlayer1,
@@ -80,7 +89,7 @@ public class GameServiceImpl implements GameService {
     GameSession game = gameSessions.get(command.getGameId());
     if (game == null) {
       log.warn("Game did not exist (anymore), session <{}> tried to reconnect with game id <{}>", session.getId(), command.getGameId());
-      return getGameEventToMessage(GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build(), session);
+      return getGameEventToMessage(GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build(), session, true);
     }
     if (game.isPlayer1Connected() && game.isPlayer2Connected()) {
       log.warn("Tried to reconnect to a game with active sessions, session <{}>, game: <{}>", session.getId(),
@@ -97,13 +106,14 @@ public class GameServiceImpl implements GameService {
           .opponentStrikes(game.getStrikesPlayer2())
           .gameId(game.getId())
           .ships(game.getShipsPlayer1())
+          .timeLeft(game.getTimeLeft())
           .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER1) {
         event.setEventType(GameEventType.TURN_OWN);
       } else {
         event.setEventType(GameEventType.TURN_OPPONENT);
       }
-      return getGameEventToMessage(event, session);
+      return getGameEventToMessage(event, session, false);
     } else {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
@@ -113,13 +123,14 @@ public class GameServiceImpl implements GameService {
           .opponentStrikes(game.getStrikesPlayer1())
           .gameId(game.getId())
           .ships(game.getShipsPlayer2())
+          .timeLeft(game.getTimeLeft())
           .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER2) {
         event.setEventType(GameEventType.TURN_OWN);
       } else {
         event.setEventType(GameEventType.TURN_OPPONENT);
       }
-      return getGameEventToMessage(event, session);
+      return getGameEventToMessage(event, session, false);
     }
   }
 
@@ -201,11 +212,12 @@ public class GameServiceImpl implements GameService {
     if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
       return getStringToMessage("Can't hit same position twice", session);
     }
-
-    game.setGameState(GameStateType.TURN_PLAYER2);
     boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow().toString() + command.getColumn());
 
+    game.setGameState(GameStateType.TURN_PLAYER2);
     game.getStrikesPlayer1().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
+    game.startTimer();
+
     if (isHit) {
       if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
         return handleWin(session, game.getSessionPlayer2(), game);
@@ -218,9 +230,10 @@ public class GameServiceImpl implements GameService {
         .strikeCol(command.getColumn().toString())
         .isHit(isHit)
         .eventType(GameEventType.TURN_OPPONENT)
+        .timeLeft(game.getTimeLeft())
         .build();
     if (!game.isPlayer2Connected()) {
-      return getGameEventToMessage(ownEvent, session);
+      return getGameEventToMessage(ownEvent, session, false);
     }
     return getGameEventsToMessages(
         ownEvent,
@@ -232,6 +245,7 @@ public class GameServiceImpl implements GameService {
             .strikeCol(command.getColumn().toString())
             .isHit(isHit)
             .eventType(GameEventType.TURN_OWN)
+            .timeLeft(game.getTimeLeft())
             .build(),
         game.getSessionPlayer2(),
         false);
@@ -241,11 +255,12 @@ public class GameServiceImpl implements GameService {
     if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
       return getStringToMessage("Can't hit same position twice", session);
     }
-
-    game.setGameState(GameStateType.TURN_PLAYER1);
     boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow().toString() + command.getColumn());
 
+    game.setGameState(GameStateType.TURN_PLAYER1);
     game.getStrikesPlayer2().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
+    game.startTimer();
+
     if (isHit) {
       if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
         return handleWin(session, game.getSessionPlayer1(), game);
@@ -258,9 +273,10 @@ public class GameServiceImpl implements GameService {
         .strikeCol(command.getColumn().toString())
         .isHit(isHit)
         .eventType(GameEventType.TURN_OPPONENT)
+        .timeLeft(game.getTimeLeft())
         .build();
     if (!game.isPlayer1Connected()) {
-      return getGameEventToMessage(ownEvent, session);
+      return getGameEventToMessage(ownEvent, session, false);
     }
     return getGameEventsToMessages(
         ownEvent,
@@ -272,6 +288,7 @@ public class GameServiceImpl implements GameService {
             .strikeCol(command.getColumn().toString())
             .isHit(isHit)
             .eventType(GameEventType.TURN_OWN)
+            .timeLeft(game.getTimeLeft())
             .build(),
         game.getSessionPlayer1(),
         false);
@@ -331,7 +348,7 @@ public class GameServiceImpl implements GameService {
   }
 
   private GameSession createGameSession() {
-    GameSession newGame = new GameSession();
+    GameSession newGame = new GameSession(executorService);
     newGame.setId(UUID.randomUUID().toString());
     gameSessions.put(newGame.getId(), newGame);
     log.info("Created new GameSession <{}>", newGame.getId());
@@ -339,6 +356,7 @@ public class GameServiceImpl implements GameService {
   }
 
   private void removeGameSession(String gameId) {
+    gameSessions.get(gameId).removeTimer();
     gameSessions.remove(gameId);
     log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>", gameId, gameSessions.size());
   }
@@ -363,13 +381,18 @@ public class GameServiceImpl implements GameService {
     return Flux.concat(messages).then();
   }
 
-  private Mono<Void> getGameEventToMessage(GameEvent event, WebSocketSession session) {
+  private Mono<Void> getGameEventToMessage(GameEvent event, WebSocketSession session, boolean lastMessage) {
+    List<Mono<Void>> messages = new ArrayList<>();
     try {
-      return session.send(Mono.just(objectMapper.writeValueAsString(event)).map(session::textMessage));
+      messages.add(session.send(Mono.just(objectMapper.writeValueAsString(event)).map(session::textMessage)));
     } catch (JsonProcessingException e) {
       log.error("GameEventToMessage: error processing JSON for WebSocket message: {}", e.getMessage());
       return getStringToMessage("Error: something went wrong server-side", session);
     }
+    if (lastMessage) {
+      messages.add(session.send(Mono.empty()).then(session.close()));
+    }
+    return Flux.concat(messages).then();
   }
 
   private Mono<Void> getStringToMessage(String string, WebSocketSession session) {

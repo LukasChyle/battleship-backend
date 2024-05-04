@@ -9,11 +9,12 @@ import lombok.Data;
 public class GameEvent {
 
   private String gameId;
+  private GameEventType eventType;
   private List<Strike> ownStrikes;
   private List<Strike> opponentStrikes;
   private String strikeRow;
   private String strikeCol;
   private boolean isHit;
-  private GameEventType eventType;
+  private Long timeLeft;
   private List<Ship> ships;
 }
