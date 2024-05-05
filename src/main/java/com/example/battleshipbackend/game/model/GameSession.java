@@ -47,7 +47,7 @@ public class GameSession {
     if (scheduledFuture != null) {
       scheduledFuture.cancel(false);
     }
-    scheduledFuture = executorService.schedule(this::executeTimeout, 20, TimeUnit.SECONDS);
+    scheduledFuture = executorService.schedule(this::executeTimeout, 180, TimeUnit.SECONDS);
   }
 
   public Long getTimeLeft() {
