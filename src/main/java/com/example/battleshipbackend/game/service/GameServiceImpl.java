@@ -45,6 +45,11 @@ public class GameServiceImpl implements GameService {
       log.warn("Tried to join a game when already in a game, session <{}>", session.getId());
       return getStringToMessage("Can't join a game when already in one", session);
     }
+    if (!isShipsValid(command.getShips())) {
+      log.warn("Tried to join a game with invalid ships, session <{}>, ships <{}>", session.getId(), command.getShips());
+      return getStringToMessage("Can't join a game without correct setup of ships.", session);
+    }
+
     GameSession game = gameSessions.values().stream()
         .filter(e -> e.getSessionPlayer2() == null)
         .findFirst().orElseGet(this::createGameSession);
@@ -55,9 +60,9 @@ public class GameServiceImpl implements GameService {
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
       return getGameEventToMessage(GameEvent.builder()
-          .gameId(game.getId())
-          .eventType(GameEventType.WAITING_OPPONENT)
-          .build(),
+              .gameId(game.getId())
+              .eventType(GameEventType.WAITING_OPPONENT)
+              .build(),
           session,
           false);
     } else {
@@ -311,6 +316,16 @@ public class GameServiceImpl implements GameService {
 
   public boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes) {
     return positions.stream().allMatch(e -> strikes.stream().anyMatch(s -> s.getTileId().equals(e)));
+  }
+
+  public boolean isShipsValid(List<Ship> ships) {
+    if (ships.size() == 5) {
+      return ships.stream().filter(e -> e.getLength() == 2).toArray().length == 2 &&
+          ships.stream().filter(e -> e.getLength() == 3).toArray().length == 1 &&
+          ships.stream().filter(e -> e.getLength() == 4).toArray().length == 1 &&
+          ships.stream().filter(e -> e.getLength() == 5).toArray().length == 1;
+    }
+    return false;
   }
 
   public List<String> getPositionsFromShips(List<Ship> ships) {
