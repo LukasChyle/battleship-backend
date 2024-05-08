@@ -320,10 +320,14 @@ public class GameServiceImpl implements GameService {
 
   public boolean isShipsValid(List<Ship> ships) {
     if (ships.size() == 5) {
-      return ships.stream().filter(e -> e.getLength() == 2).toArray().length == 2 &&
+      if (ships.stream().filter(e -> e.getLength() == 2).toArray().length == 2 &&
           ships.stream().filter(e -> e.getLength() == 3).toArray().length == 1 &&
           ships.stream().filter(e -> e.getLength() == 4).toArray().length == 1 &&
-          ships.stream().filter(e -> e.getLength() == 5).toArray().length == 1;
+          ships.stream().filter(e -> e.getLength() == 5).toArray().length == 1) {
+
+        List<String> positions = getPositionsFromShips(ships);
+        return positions.size() == positions.stream().filter(e -> Integer.parseInt(e) > 0 && Integer.parseInt(e) < 100).toArray().length;
+      }
     }
     return false;
   }
