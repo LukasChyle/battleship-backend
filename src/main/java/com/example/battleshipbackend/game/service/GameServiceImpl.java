@@ -326,7 +326,7 @@ public class GameServiceImpl implements GameService {
           ships.stream().filter(e -> e.getLength() == 5).toArray().length == 1) {
 
         List<String> positions = getPositionsFromShips(ships);
-        return positions.size() == positions.stream().filter(e -> Integer.parseInt(e) > 0 && Integer.parseInt(e) < 100).toArray().length;
+        return positions.size() == positions.stream().filter(e -> Integer.parseInt(e) >= 0 && Integer.parseInt(e) < 100).toArray().length;
       }
     }
     return false;
