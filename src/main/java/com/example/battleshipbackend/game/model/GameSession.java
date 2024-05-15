@@ -86,7 +86,7 @@ public class GameSession {
       sessionPlayer1.send(Mono.just(sessionPlayer1.textMessage(message1)))
           .then(sessionPlayer1.close()).subscribe();
     }
-    if (sessionPlayer2 != null && isPlayer2Connected()) {
+    if (isPlayer2Connected()) {
       sessionPlayer2.send(Mono.just(sessionPlayer2.textMessage(message2)))
           .then(sessionPlayer2.close()).subscribe();
     }
