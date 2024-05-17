@@ -59,7 +59,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .then(session.close())
         .doFinally(signal -> {
           log.info("Closed WebSocketSession <{}>", session.getId());
-          gameService.handleDoFinally(session);
+          gameService.handleClosedSession(session);
         });
   }
 }

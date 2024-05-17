@@ -36,6 +36,7 @@ public class GameServiceImpl implements GameService {
   }
 
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
+  private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
@@ -59,6 +60,7 @@ public class GameServiceImpl implements GameService {
     if (game.getSessionPlayer1() == null) {
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
+      currentGameIdForWebSocketSession.put(session.getId(), game.getId());
       return getGameEventToMessage(GameEvent.builder()
               .gameId(game.getId())
               .eventType(GameEventType.WAITING_OPPONENT)
@@ -68,6 +70,7 @@ public class GameServiceImpl implements GameService {
     } else {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
+      currentGameIdForWebSocketSession.put(session.getId(), game.getId());
       game.startTimer();
 
       game.setGameState(GameStateType.TURN_PLAYER1);
@@ -105,6 +108,7 @@ public class GameServiceImpl implements GameService {
     if (!game.isPlayer1Connected()) {
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
+      currentGameIdForWebSocketSession.put(session.getId(), game.getId());
       log.info("Player1 reconnected to GameSession <{}>", command.getGameId());
       GameEvent event = GameEvent.builder()
           .ownStrikes(game.getStrikesPlayer1())
@@ -122,6 +126,7 @@ public class GameServiceImpl implements GameService {
     } else {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
+      currentGameIdForWebSocketSession.put(session.getId(), game.getId());
       log.info("Player2 reconnected to GameSession <{}>", command.getGameId());
       GameEvent event = GameEvent.builder()
           .ownStrikes(game.getStrikesPlayer2())
@@ -162,24 +167,26 @@ public class GameServiceImpl implements GameService {
   }
 
   @Override
-  public void handleDoFinally(WebSocketSession session) {
-    for (var entry : gameSessions.entrySet()) {
-      if (entry.getValue().getSessionPlayer1().getId().equals(session.getId())) {
-        String gameId = entry.getKey();
-        if (!entry.getValue().isPlayer2Connected()) {
-          removeGameSession(gameId);
-        } else {
-          gameSessions.get(gameId).setPlayer1Connected(false);
-          log.info("Player1 disconnected from GameSession <{}>", gameId);
-        }
-      } else if (entry.getValue().getSessionPlayer2() != null && entry.getValue().getSessionPlayer2().getId()
-          .equals(session.getId())) {
-        String gameId = entry.getKey();
-        if (!entry.getValue().isPlayer1Connected()) {
-          removeGameSession(gameId);
-        } else {
-          gameSessions.get(gameId).setPlayer2Connected(false);
-          log.info("Player2 disconnected from GameSession <{}>", gameId);
+  public void handleClosedSession(WebSocketSession session) {
+    String gameId = currentGameIdForWebSocketSession.get(session.getId());
+    if (gameId != null) {
+      currentGameIdForWebSocketSession.remove(session.getId());
+      GameSession game = gameSessions.get(gameId);
+      if (game != null) {
+        if (game.getSessionPlayer1().equals(session)) {
+          if (!game.isPlayer2Connected()) {
+            removeGameSession(gameId);
+          } else {
+            game.setPlayer1Connected(false);
+            log.info("Player1 disconnected from GameSession <{}>", gameId);
+          }
+        } else if (game.getSessionPlayer2().equals(session)){
+          if (!game.isPlayer1Connected()) {
+            removeGameSession(gameId);
+          } else {
+            game.setPlayer2Connected(false);
+            log.info("Player2 disconnected from GameSession <{}>", gameId);
+          }
         }
       }
     }

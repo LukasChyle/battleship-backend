@@ -14,5 +14,5 @@ public interface GameService {
 
   Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command);
 
-  void handleDoFinally(WebSocketSession session);
+  void handleClosedSession(WebSocketSession session);
 }
