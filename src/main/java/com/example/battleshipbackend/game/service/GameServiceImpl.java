@@ -53,9 +53,12 @@ public class GameServiceImpl implements GameService {
         .filter(e -> e.getSessionPlayer2() == null)
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
-    setShipsAndPositions(command.getShips(), game);
+
+    List<String> positions = this.getPositionsFromShips(command.getShips());
 
     if (game.getSessionPlayer1() == null) {
+      game.setShipsPlayer1(command.getShips());
+      game.setPositionsPlayer1(positions);
       game.setId(UUID.randomUUID().toString());
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
@@ -69,6 +72,8 @@ public class GameServiceImpl implements GameService {
           session,
           false);
     } else {
+      game.setShipsPlayer2(command.getShips());
+      game.setPositionsPlayer2(positions);
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
@@ -225,17 +230,18 @@ public class GameServiceImpl implements GameService {
     if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
       return getStringToMessage("Can't hit same position twice", session);
     }
-    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow().toString() + command.getColumn());
 
-    game.setGameState(GameStateType.TURN_PLAYER2);
+    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow().toString() + command.getColumn());
     game.getStrikesPlayer1().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
-    game.startTimer();
 
     if (isHit) {
       if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
         return handleWin(session, game.getSessionPlayer2(), game);
       }
     }
+    game.setGameState(GameStateType.TURN_PLAYER2);
+    game.startTimer();
+
     GameEvent ownEvent = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
@@ -268,17 +274,18 @@ public class GameServiceImpl implements GameService {
     if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
       return getStringToMessage("Can't hit same position twice", session);
     }
-    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow().toString() + command.getColumn());
 
-    game.setGameState(GameStateType.TURN_PLAYER1);
+    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow().toString() + command.getColumn());
     game.getStrikesPlayer2().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
-    game.startTimer();
 
     if (isHit) {
       if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
         return handleWin(session, game.getSessionPlayer1(), game);
       }
     }
+    game.setGameState(GameStateType.TURN_PLAYER1);
+    game.startTimer();
+
     GameEvent ownEvent = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer2())
         .opponentStrikes(game.getStrikesPlayer1())
@@ -305,17 +312,6 @@ public class GameServiceImpl implements GameService {
             .build(),
         game.getSessionPlayer1(),
         false);
-  }
-
-  public void setShipsAndPositions(List<Ship> ships, GameSession game) {
-    List<String> positions = getPositionsFromShips(ships);
-    if (game.getSessionPlayer1() == null) {
-      game.setShipsPlayer1(ships);
-      game.setPositionsPlayer1(positions);
-    } else {
-      game.setShipsPlayer2(ships);
-      game.setPositionsPlayer2(positions);
-    }
   }
 
   public boolean getStrikeMatchPosition(List<String> positions, String Strike) {
