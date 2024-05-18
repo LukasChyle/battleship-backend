@@ -40,9 +40,7 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
-    if (gameSessions.values().stream().anyMatch(e ->
-        e.getSessionPlayer1() != null && e.getSessionPlayer1().getId().equals(session.getId()) ||
-            e.getSessionPlayer2() != null && e.getSessionPlayer2().getId().equals(session.getId()))) {
+    if (currentGameIdForWebSocketSession.get(session.getId()) != null) {
       log.warn("Tried to join a game when already in a game, session <{}>", session.getId());
       return getStringToMessage("Can't join a game when already in one", session);
     }
@@ -53,13 +51,16 @@ public class GameServiceImpl implements GameService {
 
     GameSession game = gameSessions.values().stream()
         .filter(e -> e.getSessionPlayer2() == null)
-        .findFirst().orElseGet(this::createGameSession);
+        .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
     setShipsAndPositions(command.getShips(), game);
 
     if (game.getSessionPlayer1() == null) {
+      game.setId(UUID.randomUUID().toString());
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
+      gameSessions.put(game.getId(), game);
+      log.info("Created new GameSession <{}>", game.getId());
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
       return getGameEventToMessage(GameEvent.builder()
               .gameId(game.getId())
@@ -371,14 +372,6 @@ public class GameServiceImpl implements GameService {
         .eventType(GameEventType.LOST)
         .build();
     return getGameEventsToMessages(event1, winnerSession, event2, loserSession, true);
-  }
-
-  private GameSession createGameSession() {
-    GameSession newGame = new GameSession(executorService, objectMapper);
-    newGame.setId(UUID.randomUUID().toString());
-    gameSessions.put(newGame.getId(), newGame);
-    log.info("Created new GameSession <{}>", newGame.getId());
-    return newGame;
   }
 
   private void removeGameSession(String gameId) {
