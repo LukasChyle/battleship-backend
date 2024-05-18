@@ -46,6 +46,9 @@ public class GameWebSocketHandler implements WebSocketHandler {
             log.error("Cast to GameCommand object error <{}>", e.getMessage());
             return session.send(Mono.just("Error: could not convert json to GameCommand object").map(session::textMessage));
           }
+          if (command.getType() == null) {
+            return Flux.empty();
+          }
           if (command.getGameId() == null) {
             command.setGameId("");
           }
