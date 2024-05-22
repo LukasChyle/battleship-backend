@@ -119,6 +119,7 @@ public class GameServiceImpl implements GameService {
       GameEvent event = GameEvent.builder()
           .ownStrikes(game.getStrikesPlayer1())
           .opponentStrikes(game.getStrikesPlayer2())
+          .gameId(game.getId())
           .ships(game.getShipsPlayer1())
           .timeLeft(game.getTimeLeft())
           .build();
@@ -136,6 +137,7 @@ public class GameServiceImpl implements GameService {
       GameEvent event = GameEvent.builder()
           .ownStrikes(game.getStrikesPlayer2())
           .opponentStrikes(game.getStrikesPlayer1())
+          .gameId(game.getId())
           .ships(game.getShipsPlayer2())
           .timeLeft(game.getTimeLeft())
           .build();
