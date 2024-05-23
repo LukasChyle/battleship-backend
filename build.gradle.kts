@@ -22,7 +22,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.bucket4j:bucket4j-core:8.10.1")
+    implementation("com.giffing.bucket4j.spring.boot.starter:bucket4j-spring-boot-starter:0.12.6")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
