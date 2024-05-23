@@ -186,7 +186,7 @@ public class GameServiceImpl implements GameService {
             game.setPlayer1Connected(false);
             log.info("Player1 disconnected from GameSession <{}>", gameId);
           }
-        } else if (game.getSessionPlayer2().equals(session)){
+        } else if (game.getSessionPlayer2().equals(session)) {
           if (!game.isPlayer1Connected()) {
             removeGameSession(gameId);
           } else {
@@ -358,15 +358,22 @@ public class GameServiceImpl implements GameService {
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
     removeGameSession(game.getId());
     GameEvent event1 = GameEvent.builder()
-        .ownStrikes(game.getStrikesPlayer1())
-        .opponentStrikes(game.getStrikesPlayer2())
         .eventType(GameEventType.WON)
         .build();
     GameEvent event2 = GameEvent.builder()
-        .ownStrikes(game.getStrikesPlayer2())
-        .opponentStrikes(game.getStrikesPlayer1())
         .eventType(GameEventType.LOST)
         .build();
+    if (winnerSession.equals(game.getSessionPlayer1())) {
+      event1.setOwnStrikes(game.getStrikesPlayer1());
+      event1.setOpponentStrikes(game.getStrikesPlayer2());
+      event2.setOwnStrikes(game.getStrikesPlayer2());
+      event2.setOpponentStrikes(game.getStrikesPlayer1());
+    } else {
+      event2.setOwnStrikes(game.getStrikesPlayer1());
+      event2.setOpponentStrikes(game.getStrikesPlayer2());
+      event1.setOwnStrikes(game.getStrikesPlayer2());
+      event1.setOpponentStrikes(game.getStrikesPlayer1());
+    }
     return getGameEventsToMessages(event1, winnerSession, event2, loserSession, true);
   }
 
