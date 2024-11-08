@@ -5,6 +5,11 @@ import com.example.battleshipbackend.game.model.GameCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -12,6 +17,7 @@ import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Log4j2
 @Component
@@ -19,17 +25,35 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private final ObjectMapper objectMapper;
   private final GameService gameService;
+  private static final int MAX_MESSAGES = 5;
+  private static final Duration BUCKET_INTERVAL = Duration.ofSeconds(5);
+
+  private final Map<String, AtomicInteger> sessionMessageCounters = new ConcurrentHashMap<>();
 
   @Autowired
   public GameWebSocketHandler(ObjectMapper objectMapper, GameService gameService) {
     this.objectMapper = objectMapper;
     this.gameService = gameService;
+    Schedulers.single()
+        .schedulePeriodically(this::resetAllCounters, BUCKET_INTERVAL.toMillis(), BUCKET_INTERVAL.toMillis(), TimeUnit.MILLISECONDS);
+  }
+
+  private void resetAllCounters() {
+    sessionMessageCounters.forEach((sessionId, counter) -> counter.set(0));
   }
 
   @Override
   public Mono<Void> handle(WebSocketSession session) {
     log.info("Created WebSocketSession <{}>", session.getId());
+    sessionMessageCounters.putIfAbsent(session.getId(), new AtomicInteger(0));
     return session.receive()
+        .doOnNext(message -> {
+          AtomicInteger counter = sessionMessageCounters.get(session.getId());
+          if (counter.incrementAndGet() > MAX_MESSAGES) {
+            log.warn("Rate limit exceeded <{}> for session <{}>", counter, session.getId());
+          }
+        })
+        .filter(message -> sessionMessageCounters.get(session.getId()).get() <= MAX_MESSAGES)
         .onErrorResume(throwable -> {
           log.error("WebSocketSession <{}>: <{}>", session.getId(), throwable.toString());
           if (throwable instanceof IOException) { // Todo: might need more exception catching to hande all types of client disconnections, ReactorNettyException?
@@ -63,6 +87,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .doFinally(signal -> {
           log.info("Closed WebSocketSession <{}>", session.getId());
           gameService.handleClosedSession(session);
+          sessionMessageCounters.remove(session.getId());
         });
   }
 }
