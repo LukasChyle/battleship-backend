@@ -22,7 +22,6 @@ repositories {
 }
 
 dependencies {
-    // https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-webflux
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
