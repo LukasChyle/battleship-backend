@@ -39,6 +39,15 @@ public class GameServiceImpl implements GameService {
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
   //TODO: create a GameControlService for all the control methods including for messages.
+  //TODO: Control if command.getGameId() is a valid UUID before searching for game.
+  //TODO: consider if Spring's validation framework might be a good approach.
+  //TODO: go trough the code and see if null checks are missing somewhere.
+  //TODO: enums for game states, event types, and other constants?
+  //TODO: see if there is a need for a player class/model.
+  //TODO: move logic for sending a message into own class or method.
+  //TODO: if possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
+  //TODO: control that the timer is properly cancelled when the game ends.
+  //TODO: Create unit and integration tests.
 
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
@@ -317,11 +326,11 @@ public class GameServiceImpl implements GameService {
   }
 
   public boolean getStrikeMatchPosition(List<String> positions, String Strike) {
-    return positions.stream().anyMatch(e -> e.equals(Strike));
+    return positions.stream().anyMatch(position -> position.equals(Strike));
   }
 
   public boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes) {
-    return positions.stream().allMatch(e -> strikes.stream().anyMatch(s -> s.getTileId().equals(e)));
+    return positions.stream().allMatch(position -> strikes.stream().anyMatch(strike -> strike.getTileId().equals(position)));
   }
 
   public boolean isShipsValid(List<Ship> ships) {
