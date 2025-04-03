@@ -38,6 +38,8 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
+  //TODO: create a GameControlService for all the control methods including for messages.
+
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
     if (currentGameIdForWebSocketSession.get(session.getId()) != null) {
@@ -223,7 +225,7 @@ public class GameServiceImpl implements GameService {
       return getStringToMessage("Wrong session for this game", session);
     }
     log.warn("Tried to strike on opponents turn, session <{}>, game id: <{}>", session.getId(), game.getId());
-    return getStringToMessage("Not your play turn", session);
+    return getStringToMessage("Not your turn to play", session);
   }
 
   public Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
@@ -331,6 +333,9 @@ public class GameServiceImpl implements GameService {
 
         List<String> positions = getPositionsFromShips(ships);
         return positions.size() == positions.stream().filter(e -> Integer.parseInt(e) >= 0 && Integer.parseInt(e) < 100).toArray().length;
+        //todo: instead of controlling main position is between 0-100,
+        // control if it's position is valid within the board with the boats length and position.
+        // todo: break the method into one for each check (number of ships, correct size of all ships, valid placement on board)
       }
     }
     return false;
