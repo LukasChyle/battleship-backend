@@ -31,15 +31,9 @@ environment within a scalable system.
 The frontend is developed using JavaScript with the React library, while the backend is
 implemented in Java utilizing the Spring Boot framework.
 
-## Tools
+## Tools (used in backend)
 ### Spring Boot
 A Java-based framework for building backend services and web applications. It simplifies dependency management, includes an embedded server (Tomcat, Netty, etc.), and offers production-ready features out of the box.
-
-### React
-A JavaScript library for building user interfaces with a component-based approach. It focuses on the view layer, enabling dynamic and interactive UIs.
-
-### Vite
-A fast frontend build tool and development server optimized for modern frameworks like React, Vue, and Svelte. It uses ES modules (ESM) and esbuild for faster startup and hot module replacement (HMR).
 
 ### WebSocket
 A communication protocol enabling bidirectional, real-time data exchange between a client and server over a single persistent TCP connection, reducing the need for repeated requests.
@@ -56,17 +50,8 @@ A module for developing reactive, non-blocking web applications using Spring Web
 ### Lombok
 A Java library that reduces boilerplate code by generating getter/setter methods, constructors, and more at compile time. Improves code readability but adds compile-time dependencies that can affect debugging.
 
-### Material-UI (MUI)
-A React component library implementing Google’s Material Design, offering customizable and reusable UI components for modern and responsive web applications.
-
-### Dnd-kit
-A lightweight React library for creating drag-and-drop interactions with a customizable and accessible API.
-
-### React-use-websocket
-A React library simplifying WebSocket management with built-in support for reconnecting, message handling, and real-time data streaming.
-
-### React-intl
-A React library for internationalization (i18n), enabling easy localization of text, dates, and numbers in different languages and regions.
+### Log4j2
+A popular Java-based logging framework used for capturing, storing, and managing log messages in applications.
 
 ## Example images
 ![Screenshot 2024-05-23 080858](https://github.com/user-attachments/assets/31048333-926e-4270-95ce-b341214fe5e7)
