@@ -29,16 +29,17 @@ public class GameServiceImpl implements GameService {
 
   private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
   private final ObjectMapper objectMapper;
+  private final GameControlService gameControlService;
 
   @Autowired
-  public GameServiceImpl(ObjectMapper objectMapper) {
+  public GameServiceImpl(ObjectMapper objectMapper, GameControlService gameControlService) {
     this.objectMapper = objectMapper;
+    this.gameControlService = gameControlService;
   }
 
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: create a GameControlService for game control logic and validation.
   //TODO: add MessageService to handle webSocket Messages and logic.
   //TODO: Control if command.getGameId() is a valid UUID before searching for game.
   //TODO: consider if Spring's validation framework might be a good approach.
@@ -55,7 +56,7 @@ public class GameServiceImpl implements GameService {
       log.warn("Tried to join a game when already in a game, session <{}>", session.getId());
       return getStringToMessage("Can't join a game when already in one", session);
     }
-    if (!isShipsValid(command.getShips())) {
+    if (!gameControlService.isShipsValid(command.getShips())) {
       log.warn("Tried to join a game with invalid ships, session <{}>, ships <{}>", session.getId(), command.getShips());
       return getStringToMessage("Can't join a game without correct setup of ships.", session);
     }
@@ -65,7 +66,7 @@ public class GameServiceImpl implements GameService {
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
 
-    List<String> positions = this.getPositionsFromShips(command.getShips());
+    List<String> positions = gameControlService.getPositionsFromShips(command.getShips());
 
     if (game.getSessionPlayer1() == null) {
       game.setShipsPlayer1(command.getShips());
@@ -238,15 +239,15 @@ public class GameServiceImpl implements GameService {
   }
 
   public Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
-    if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
+    if (gameControlService.isStrikePositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
       return getStringToMessage("Can't hit same position twice", session);
     }
 
-    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow().toString() + command.getColumn());
+    boolean isHit = gameControlService.getStrikeMatchPosition(game.getPositionsPlayer2(), command.getRow().toString() + command.getColumn());
     game.getStrikesPlayer1().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
 
     if (isHit) {
-      if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
+      if (gameControlService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
         return handleWin(session, game.getSessionPlayer2(), game);
       }
     }
@@ -282,15 +283,15 @@ public class GameServiceImpl implements GameService {
   }
 
   public Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
-    if (isPositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
+    if (gameControlService.isStrikePositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
       return getStringToMessage("Can't hit same position twice", session);
     }
 
-    boolean isHit = getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow().toString() + command.getColumn());
+    boolean isHit = gameControlService.getStrikeMatchPosition(game.getPositionsPlayer1(), command.getRow().toString() + command.getColumn());
     game.getStrikesPlayer2().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
 
     if (isHit) {
-      if (getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
+      if (gameControlService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
         return handleWin(session, game.getSessionPlayer1(), game);
       }
     }
@@ -323,50 +324,6 @@ public class GameServiceImpl implements GameService {
             .build(),
         game.getSessionPlayer1(),
         false);
-  }
-
-  public boolean getStrikeMatchPosition(List<String> positions, String Strike) {
-    return positions.stream().anyMatch(position -> position.equals(Strike));
-  }
-
-  public boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes) {
-    return positions.stream().allMatch(position -> strikes.stream().anyMatch(strike -> strike.getTileId().equals(position)));
-  }
-
-  public boolean isShipsValid(List<Ship> ships) {
-    if (ships.size() == 5) {
-      if (ships.stream().filter(e -> e.getLength() == 2).toArray().length == 2 &&
-          ships.stream().filter(e -> e.getLength() == 3).toArray().length == 1 &&
-          ships.stream().filter(e -> e.getLength() == 4).toArray().length == 1 &&
-          ships.stream().filter(e -> e.getLength() == 5).toArray().length == 1) {
-
-        List<String> positions = getPositionsFromShips(ships);
-        return positions.size() == positions.stream().filter(e -> Integer.parseInt(e) >= 0 && Integer.parseInt(e) < 100).toArray().length;
-        //todo: instead of controlling main position is between 0-100,
-        // control if it's position is valid within the board with the boats length and position.
-        // todo: break the method into one for each check (number of ships, correct size of all ships, valid placement on board)
-      }
-    }
-    return false;
-  }
-
-  public List<String> getPositionsFromShips(List<Ship> ships) {
-    List<String> positions = new ArrayList<>();
-    ships.forEach(e -> {
-      for (int i = 0; i < e.getLength(); i++) {
-        if (e.getIsHorizontal()) {
-          positions.add(String.valueOf(e.getRow()) + (e.getCol() + i));
-        } else {
-          positions.add(String.valueOf((e.getRow() + i)) + e.getCol());
-        }
-      }
-    });
-    return positions;
-  }
-
-  public boolean isPositionAlreadyUsed(String position, List<Strike> strikes) {
-    List<String> positions = strikes.stream().map(Strike::getTileId).toList();
-    return positions.contains(position);
   }
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
