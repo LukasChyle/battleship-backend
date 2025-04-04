@@ -4,10 +4,16 @@ import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
 public class GameControlService {
+
+  public boolean isStringUUID(String input) {
+    Pattern UUID_REGEX = Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+    return UUID_REGEX.matcher(input).matches();
+  }
 
   public boolean getStrikeMatchPosition(List<String> positions, String Strike) {
     return positions.stream().anyMatch(position -> position.equals(Strike));

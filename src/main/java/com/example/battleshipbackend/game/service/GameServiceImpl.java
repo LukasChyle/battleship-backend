@@ -38,7 +38,6 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: Control if command.getGameId() is a valid UUID before searching for game.
   //TODO: consider if Spring's validation framework might be a good approach.
   //TODO: go trough the code and see if null checks are missing somewhere.
   //TODO: enums for game states, event types, and other constants?
@@ -109,22 +108,23 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command) {
+    if (!gameControlService.isStringUUID(command.getGameId())) {
+      return gameMessageService.getStringToMessage("Game id is not valid.", session);
+    }
     GameSession game = gameSessions.get(command.getGameId());
     if (game == null) {
-      log.warn("Game do not exist, session <{}> tried to reconnect with game id <{}>", session.getId(), command.getGameId());
       return gameMessageService.getGameEventToMessage(GameEvent.builder().eventType(GameEventType.NO_GAME).build(), session, true);
     }
     if (game.isPlayer1Connected() && game.isPlayer2Connected()) {
       log.warn("Tried to reconnect to a game with active sessions, session <{}>, game: <{}>", session.getId(),
           game.toString());
-      return gameMessageService.getStringToMessage("Both sessions for this game are active", session);
+      return gameMessageService.getStringToMessage("Both players for this game are already active", session);
     }
 
     if (!game.isPlayer1Connected()) {
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
-      log.info("Player1 reconnected to GameSession <{}>", command.getGameId());
       GameEvent event = GameEvent.builder()
           .ownStrikes(game.getStrikesPlayer1())
           .opponentStrikes(game.getStrikesPlayer2())
@@ -142,7 +142,6 @@ public class GameServiceImpl implements GameService {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
-      log.info("Player2 reconnected to GameSession <{}>", command.getGameId());
       GameEvent event = GameEvent.builder()
           .ownStrikes(game.getStrikesPlayer2())
           .opponentStrikes(game.getStrikesPlayer1())
@@ -161,6 +160,9 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command) {
+    if (!gameControlService.isStringUUID(command.getGameId())) {
+      return gameMessageService.getStringToMessage("Game id is not valid.", session);
+    }
     GameSession game = gameSessions.get(command.getGameId());
     if (game == null) {
       log.warn("LeaveRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
@@ -209,6 +211,9 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
+    if (!gameControlService.isStringUUID(command.getGameId())) {
+      return gameMessageService.getStringToMessage("Game id is not valid.", session);
+    }
     GameSession game = gameSessions.get(command.getGameId());
     if (game == null) {
       log.warn("StrikeRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
