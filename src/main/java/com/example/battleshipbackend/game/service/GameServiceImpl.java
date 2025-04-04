@@ -38,10 +38,12 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: consider if Spring's validation framework might be a good approach.
+  //TODO: Building own AI, getNextMove, processLastMove,getRandomMove,getAdjacentCoords.
+  //TODO: to make it easier for the AI to know where to strike.make it clear if an ship is sunk or not.
+  //TODO: Send info to frontend of ships that are sunk, and show them in transparent on the board.
+
+
   //TODO: go trough the code and see if null checks are missing somewhere.
-  //TODO: enums for game states, event types, and other constants?
-  //TODO: see if there is a need for a player class/model.
   //TODO: if possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
   //TODO: control that the timer is properly cancelled when the game ends (cleanup).
   //TODO: Create unit and integration tests.
