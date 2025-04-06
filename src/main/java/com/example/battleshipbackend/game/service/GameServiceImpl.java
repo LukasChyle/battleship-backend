@@ -38,7 +38,9 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: Refactor how tile-id are handled and transferred in both frontend and backend.
+  //TODO: Refactor how tile-id are handled and transferred in both frontend and backend
+  // so it uses row and col everywhere and not a string of them together.
+
   //TODO: Go trough the code and see if null checks are missing somewhere.
   //TODO: If possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
   //TODO: Control that the timer is properly cancelled when the game ends (cleanup).
@@ -238,7 +240,7 @@ public class GameServiceImpl implements GameService {
     return gameMessageService.getStringToMessage("Not your turn to play", session);
   }
 
-  public Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
+  private Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
     if (gameControlService.isStrikePositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
@@ -283,7 +285,7 @@ public class GameServiceImpl implements GameService {
         false);
   }
 
-  public Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
+  private Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
     if (gameControlService.isStrikePositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }

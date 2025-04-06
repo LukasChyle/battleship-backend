@@ -23,6 +23,7 @@ public class AIOpponentService {
   }
 
   private String getRandomMove() {
+
     return "placeholder";
   }
 
