@@ -15,17 +15,17 @@ public class GameControlService {
     return UUID_REGEX.matcher(input).matches();
   }
 
-  public boolean getStrikeMatchPosition(List<String> positions, String Strike) {
-    return positions.stream().anyMatch(position -> position.equals(Strike));
+  public boolean getStrikeMatchPosition(List<String> positions, int row, int column) {
+    return positions.stream().anyMatch(position -> position.equals(row + "" + column));
   }
 
   public boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes) {
-    return positions.stream().allMatch(position -> strikes.stream().anyMatch(strike -> strike.getTileId().equals(position)));
+    return positions.stream()
+        .allMatch(position -> strikes.stream().anyMatch(strike -> (strike.getRow() + "" + strike.getColumn()).equals(position)));
   }
 
-  public boolean isStrikePositionAlreadyUsed(String position, List<Strike> strikes) {
-    List<String> positions = strikes.stream().map(Strike::getTileId).toList();
-    return positions.contains(position);
+  public boolean isStrikePositionAlreadyUsed(int row, int column, List<Strike> strikes) {
+    return strikes.stream().anyMatch(strike -> strike.getRow() == row && strike.getColumn() == column);
   }
 
   public List<String> getPositionsFromShips(List<Ship> ships) {
@@ -45,7 +45,7 @@ public class GameControlService {
   public boolean isShipsValid(List<Ship> ships) {
     if (isNumberOfShipsValid(ships) && isLengthOfShipsValid(ships)) {
       List<String> positions = getPositionsFromShips(ships);
-      return isShipsWithinBounds(positions) && isPositionsNotOverlapping(positions);
+      return isShipsWithinBounds(positions) && isNotOverlapping(positions);
     }
     return false;
   }
@@ -66,7 +66,7 @@ public class GameControlService {
         .toArray().length;
   }
 
-  private boolean isPositionsNotOverlapping(List<String> positions) {
+  private boolean isNotOverlapping(List<String> positions) {
     return positions.size() == positions.stream().distinct().count();
   }
 }

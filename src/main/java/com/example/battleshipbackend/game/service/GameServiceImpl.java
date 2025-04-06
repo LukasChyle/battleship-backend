@@ -241,13 +241,13 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
-    if (gameControlService.isStrikePositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer1())) {
+    if (gameControlService.isStrikePositionAlreadyUsed(command.getRow(), command.getColumn(), game.getStrikesPlayer1())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
     boolean isHit = gameControlService.getStrikeMatchPosition(game.getPositionsPlayer2(),
-        command.getRow().toString() + command.getColumn());
-    game.getStrikesPlayer1().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
+        command.getRow(), command.getColumn());
+    game.getStrikesPlayer1().add(new Strike(command.getRow(), command.getColumn(), isHit));
 
     if (isHit) {
       if (gameControlService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
@@ -286,13 +286,13 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
-    if (gameControlService.isStrikePositionAlreadyUsed((command.getRow().toString() + command.getColumn()), game.getStrikesPlayer2())) {
+    if (gameControlService.isStrikePositionAlreadyUsed(command.getRow(), command.getColumn(), game.getStrikesPlayer2())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
     boolean isHit = gameControlService.getStrikeMatchPosition(game.getPositionsPlayer1(),
-        command.getRow().toString() + command.getColumn());
-    game.getStrikesPlayer2().add(new Strike(command.getRow().toString() + command.getColumn(), isHit));
+        command.getRow(), command.getColumn());
+    game.getStrikesPlayer2().add(new Strike(command.getRow(), command.getColumn(), isHit));
 
     if (isHit) {
       if (gameControlService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {

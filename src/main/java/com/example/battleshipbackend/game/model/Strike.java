@@ -6,6 +6,7 @@ import lombok.Data;
 @AllArgsConstructor
 @Data
 public class Strike {
-    private String tileId;
+    private int row;
+    private int column;
     private boolean isHit;
 }
