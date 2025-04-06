@@ -38,8 +38,7 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: Refactor positionsPlayer1 and positionsPlayer2 in GameSession to have list of Position instead of list of String,
-  // create the object Position with variables: int row, int column.
+  //TODO: Refactor positionsPlayer1 and positionsPlayer2 in GameSession to have list of Coordinate instead of list of String.
 
   //TODO: Go trough the code and see if null checks are missing somewhere.
   //TODO: If possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
