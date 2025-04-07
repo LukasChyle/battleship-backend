@@ -38,8 +38,8 @@ public class GameSession {
   private boolean isPlayer2Connected = false;
   private List<Strike> strikesPlayer1 = new ArrayList<>();
   private List<Strike> strikesPlayer2 = new ArrayList<>();
-  private List<String> positionsPlayer1 = new ArrayList<>();
-  private List<String> positionsPlayer2 = new ArrayList<>();
+  private List<Coordinate> coordinatesPlayer1 = new ArrayList<>();
+  private List<Coordinate> coordinatesPlayer2 = new ArrayList<>();
   private List<Ship> shipsPlayer1 = new ArrayList<>();
   private List<Ship> shipsPlayer2 = new ArrayList<>();
 

@@ -1,5 +1,6 @@
 package com.example.battleshipbackend.game.service;
 
+import com.example.battleshipbackend.game.model.Coordinate;
 import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
 import java.util.ArrayList;
@@ -15,37 +16,38 @@ public class GameControlService {
     return UUID_REGEX.matcher(input).matches();
   }
 
-  public boolean getStrikeMatchPosition(List<String> positions, int row, int column) {
-    return positions.stream().anyMatch(position -> position.equals(row + "" + column));
+  public boolean isStrikeMatchingACoordinate(int row, int column, List<Coordinate> coordinates) {
+    return coordinates.stream().anyMatch(coordinate -> coordinate.getRow() == row && coordinate.getColumn() == column);
   }
 
-  public boolean getAllPositionsMatchedByStrikes(List<String> positions, List<Strike> strikes) {
-    return positions.stream()
-        .allMatch(position -> strikes.stream().anyMatch(strike -> (strike.getRow() + "" + strike.getColumn()).equals(position)));
+  public boolean isAllCoordinatesMatchedByStrikes(List<Coordinate> coordinates, List<Strike> strikes) {
+    return coordinates.stream()
+        .allMatch(coordinate -> strikes.stream()
+            .anyMatch(strike -> (strike.getRow() == coordinate.getRow() && strike.getColumn() == coordinate.getColumn())));
   }
 
   public boolean isStrikePositionAlreadyUsed(int row, int column, List<Strike> strikes) {
     return strikes.stream().anyMatch(strike -> strike.getRow() == row && strike.getColumn() == column);
   }
 
-  public List<String> getPositionsFromShips(List<Ship> ships) {
-    List<String> positions = new ArrayList<>();
+  public List<Coordinate> getCoordinatesFromShips(List<Ship> ships) {
+    List<Coordinate> coordinates = new ArrayList<>();
     ships.forEach(e -> {
       for (int i = 0; i < e.getLength(); i++) {
         if (e.getIsHorizontal()) {
-          positions.add(String.valueOf(e.getRow()) + (e.getCol() + i));
+          coordinates.add(new Coordinate(e.getRow(), (e.getCol() + i)));
         } else {
-          positions.add(String.valueOf((e.getRow() + i)) + e.getCol());
+          coordinates.add(new Coordinate((e.getRow() + i), e.getCol()));
         }
       }
     });
-    return positions;
+    return coordinates;
   }
 
   public boolean isShipsValid(List<Ship> ships) {
     if (isNumberOfShipsValid(ships) && isLengthOfShipsValid(ships)) {
-      List<String> positions = getPositionsFromShips(ships);
-      return isShipsWithinBounds(positions) && isNotOverlapping(positions);
+      List<Coordinate> coordinates = getCoordinatesFromShips(ships);
+      return isShipsWithinBounds(coordinates) && isNotOverlapping(coordinates);
     }
     return false;
   }
@@ -61,12 +63,12 @@ public class GameControlService {
         ships.stream().filter(e -> e.getLength() == 5).count() == 1;
   }
 
-  private boolean isShipsWithinBounds(List<String> shipPositions) {
-    return shipPositions.size() == shipPositions.stream().filter(e -> Integer.parseInt(e) >= 0 && Integer.parseInt(e) < 100)
-        .toArray().length;
+  private boolean isShipsWithinBounds(List<Coordinate> coordinates) {
+    return coordinates.size() == coordinates.stream()
+        .filter(e -> e.getRow() >= 0 && e.getRow() <= 9 && e.getColumn() >= 0 && e.getColumn() <= 9).toArray().length;
   }
 
-  private boolean isNotOverlapping(List<String> positions) {
-    return positions.size() == positions.stream().distinct().count();
+  private boolean isNotOverlapping(List<Coordinate> coordinates) {
+    return coordinates.size() == coordinates.stream().distinct().count();
   }
 }

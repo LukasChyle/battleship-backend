@@ -1,5 +1,6 @@
 package com.example.battleshipbackend.game.service;
 
+import com.example.battleshipbackend.game.model.Coordinate;
 import com.example.battleshipbackend.game.model.GameCommand;
 import com.example.battleshipbackend.game.model.GameEvent;
 import com.example.battleshipbackend.game.model.GameEventType;
@@ -7,6 +8,7 @@ import com.example.battleshipbackend.game.model.GameSession;
 import com.example.battleshipbackend.game.model.GameStateType;
 import com.example.battleshipbackend.game.model.Strike;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,8 +40,6 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: Refactor positionsPlayer1 and positionsPlayer2 in GameSession to have list of Coordinate instead of list of String.
-
   //TODO: instead of a list of ships, have lists of sunkenShips and activeShips holding list of coordinates of that ships tiles.
   // that should replace positionsPlayer1 & 2 and shipsPlayer1 & 2 from GameSession.
 
@@ -64,11 +64,11 @@ public class GameServiceImpl implements GameService {
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
 
-    List<String> positions = gameControlService.getPositionsFromShips(command.getShips());
+    List<Coordinate> coordinates = gameControlService.getCoordinatesFromShips(command.getShips());
 
     if (game.getSessionPlayer1() == null) {
       game.setShipsPlayer1(command.getShips());
-      game.setPositionsPlayer1(positions);
+      game.setCoordinatesPlayer1(coordinates);
       game.setId(UUID.randomUUID().toString());
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
@@ -83,7 +83,7 @@ public class GameServiceImpl implements GameService {
           false);
     } else {
       game.setShipsPlayer2(command.getShips());
-      game.setPositionsPlayer2(positions);
+      game.setCoordinatesPlayer2(coordinates);
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
@@ -247,12 +247,11 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    boolean isHit = gameControlService.getStrikeMatchPosition(game.getPositionsPlayer2(),
-        command.getRow(), command.getColumn());
+    boolean isHit = gameControlService.isStrikeMatchingACoordinate(command.getRow(), command.getColumn(), game.getCoordinatesPlayer2());
     game.getStrikesPlayer1().add(new Strike(command.getRow(), command.getColumn(), isHit));
 
     if (isHit) {
-      if (gameControlService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer2(), game.getStrikesPlayer1())) {
+      if (gameControlService.isAllCoordinatesMatchedByStrikes(game.getCoordinatesPlayer2(), game.getStrikesPlayer1())) {
         return handleWin(session, game.getSessionPlayer2(), game);
       }
     }
@@ -292,12 +291,11 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    boolean isHit = gameControlService.getStrikeMatchPosition(game.getPositionsPlayer1(),
-        command.getRow(), command.getColumn());
+    boolean isHit = gameControlService.isStrikeMatchingACoordinate(command.getRow(), command.getColumn(), game.getCoordinatesPlayer1());
     game.getStrikesPlayer2().add(new Strike(command.getRow(), command.getColumn(), isHit));
 
     if (isHit) {
-      if (gameControlService.getAllPositionsMatchedByStrikes(game.getPositionsPlayer1(), game.getStrikesPlayer2())) {
+      if (gameControlService.isAllCoordinatesMatchedByStrikes(game.getCoordinatesPlayer1(), game.getStrikesPlayer2())) {
         return handleWin(session, game.getSessionPlayer1(), game);
       }
     }
