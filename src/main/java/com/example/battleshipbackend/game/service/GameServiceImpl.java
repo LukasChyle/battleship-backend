@@ -40,6 +40,9 @@ public class GameServiceImpl implements GameService {
 
   //TODO: Refactor positionsPlayer1 and positionsPlayer2 in GameSession to have list of Coordinate instead of list of String.
 
+  //TODO: instead of a list of ships, have lists of sunkenShips and activeShips holding list of coordinates of that ships tiles.
+  // that should replace positionsPlayer1 & 2 and shipsPlayer1 & 2 from GameSession.
+
   //TODO: Go trough the code and see if null checks are missing somewhere.
   //TODO: If possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
   //TODO: Control that the timer is properly cancelled when the game ends (cleanup).
