@@ -40,8 +40,9 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: instead of a list of ships, have lists of sunkenShips and activeShips holding list of coordinates of that ships tiles.
-  // that should replace positionsPlayer1 & 2 and shipsPlayer1 & 2 from GameSession.
+  //TODO: instead of a list of ships, have lists of sunkenShips and activeShips.
+  // holding list of coordinates of that ships tiles? try without first.
+  //TODO: show own and opponents sunken ships in frontend, also make sure it can be logged as game message in frontend.
 
   //TODO: Go trough the code and see if null checks are missing somewhere.
   //TODO: If possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
