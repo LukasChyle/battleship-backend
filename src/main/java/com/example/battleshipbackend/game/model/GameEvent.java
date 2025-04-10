@@ -12,9 +12,8 @@ public class GameEvent {
   private GameEventType eventType;
   private List<Strike> ownStrikes;
   private List<Strike> opponentStrikes;
-  private String strikeRow;
-  private String strikeCol;
-  private boolean isHit;
   private Long timeLeft;
-  private List<Ship> ships;
+  private List<ShipDTO> ownActiveShips;
+  private List<ShipDTO> ownSunkenShips;
+  private List<ShipDTO> opponentSunkenShips;
 }

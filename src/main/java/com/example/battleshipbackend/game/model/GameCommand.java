@@ -10,5 +10,5 @@ public class GameCommand {
   private String gameId;
   private Integer row;
   private Integer column;
-  private List<Ship> ships;
+  private List<ShipDTO> ships;
 }

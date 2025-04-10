@@ -1,20 +1,26 @@
 package com.example.battleshipbackend.game.service;
 
+import com.example.battleshipbackend.game.converter.GameDtoConverter;
 import com.example.battleshipbackend.game.model.Coordinate;
 import com.example.battleshipbackend.game.model.GameCommand;
 import com.example.battleshipbackend.game.model.GameEvent;
 import com.example.battleshipbackend.game.model.GameEventType;
 import com.example.battleshipbackend.game.model.GameSession;
 import com.example.battleshipbackend.game.model.GameStateType;
+import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -29,12 +35,15 @@ public class GameServiceImpl implements GameService {
   private final ObjectMapper objectMapper;
   private final GameControlService gameControlService;
   private final GameMessageService gameMessageService;
+  private final GameDtoConverter gameDtoConverter;
 
   @Autowired
-  public GameServiceImpl(ObjectMapper objectMapper, GameControlService gameControlService, GameMessageService gameMessageService) {
+  public GameServiceImpl(ObjectMapper objectMapper, GameControlService gameControlService, GameMessageService gameMessageService,
+      GameDtoConverter gameDtoConverter) {
     this.objectMapper = objectMapper;
     this.gameControlService = gameControlService;
     this.gameMessageService = gameMessageService;
+    this.gameDtoConverter = gameDtoConverter;
   }
 
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
@@ -42,7 +51,14 @@ public class GameServiceImpl implements GameService {
 
   //TODO: instead of a list of ships, have lists of sunkenShips and activeShips.
   // holding list of coordinates of that ships tiles? try without first.
-  //TODO: show own and opponents sunken ships in frontend, also make sure it can be logged as game message in frontend.
+  //TODO: replace row and column in Strike to Coordinate.
+  //TODO: in GameEvent, remove strikeRow and Column and use last added Strike for own or opponent in frontend
+
+  //TODO: show own and opponents sunken ships in frontend, also make sure it can be logged as game message in frontend when a ship is sunk.
+  //TODO: both sunken and active ships have to be used in frontend on reconnect to properly show ships.
+  //TODO: Remove coordinatesPlayer1 & 2 from gameSession and use sunken and active ships to handle all game logic.
+  //TODO: in GameCommand from frontend, change row and column to a Coordinate object named "strikeCoordinate"
+  //TODO: in ShipDTO and frontend, change col to column.
 
   //TODO: Go trough the code and see if null checks are missing somewhere.
   //TODO: If possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
@@ -55,7 +71,8 @@ public class GameServiceImpl implements GameService {
       log.warn("Tried to join a game when already in a game, session <{}>", session.getId());
       return gameMessageService.getStringToMessage("Can't join a game when already in one", session);
     }
-    if (!gameControlService.isShipsValid(command.getShips())) {
+    List<Ship> ships = gameDtoConverter.toListOfShip(command.getShips());
+    if (!gameControlService.isShipsValid(ships)) {
       log.warn("Tried to join a game with invalid ships, session <{}>, ships <{}>", session.getId(), command.getShips());
       return gameMessageService.getStringToMessage("Can't join a game without correct setup of ships.", session);
     }
@@ -65,11 +82,8 @@ public class GameServiceImpl implements GameService {
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
 
-    List<Coordinate> coordinates = gameControlService.getCoordinatesFromShips(command.getShips());
-
     if (game.getSessionPlayer1() == null) {
-      game.setShipsPlayer1(command.getShips());
-      game.setCoordinatesPlayer1(coordinates);
+      game.setActiveShipsPlayer1(ships);
       game.setId(UUID.randomUUID().toString());
       game.setSessionPlayer1(session);
       game.setPlayer1Connected(true);
@@ -83,8 +97,7 @@ public class GameServiceImpl implements GameService {
           session,
           false);
     } else {
-      game.setShipsPlayer2(command.getShips());
-      game.setCoordinatesPlayer2(coordinates);
+      game.setActiveShipsPlayer2(ships);
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
@@ -111,7 +124,7 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command) {
-    if (!gameControlService.isStringUUID(command.getGameId())) {
+    if (gameControlService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
     GameSession game = gameSessions.get(command.getGameId());
@@ -132,7 +145,9 @@ public class GameServiceImpl implements GameService {
           .ownStrikes(game.getStrikesPlayer1())
           .opponentStrikes(game.getStrikesPlayer2())
           .gameId(game.getId())
-          .ships(game.getShipsPlayer1())
+          .ownActiveShips(gameDtoConverter.toListOfShipDTO(game.getActiveShipsPlayer1()))
+          .ownSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer1()))
+          .opponentSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer2()))
           .timeLeft(game.getTimeLeft())
           .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER1) {
@@ -149,7 +164,9 @@ public class GameServiceImpl implements GameService {
           .ownStrikes(game.getStrikesPlayer2())
           .opponentStrikes(game.getStrikesPlayer1())
           .gameId(game.getId())
-          .ships(game.getShipsPlayer2())
+          .ownActiveShips(gameDtoConverter.toListOfShipDTO(game.getActiveShipsPlayer2()))
+          .ownSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer2()))
+          .opponentSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer1()))
           .timeLeft(game.getTimeLeft())
           .build();
       if (game.getGameState() == GameStateType.TURN_PLAYER2) {
@@ -163,7 +180,7 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command) {
-    if (!gameControlService.isStringUUID(command.getGameId())) {
+    if (gameControlService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
     GameSession game = gameSessions.get(command.getGameId());
@@ -214,7 +231,7 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
-    if (!gameControlService.isStringUUID(command.getGameId())) {
+    if (gameControlService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
     GameSession game = gameSessions.get(command.getGameId());
@@ -248,23 +265,19 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    boolean isHit = gameControlService.isStrikeMatchingACoordinate(command.getRow(), command.getColumn(), game.getCoordinatesPlayer2());
-    game.getStrikesPlayer1().add(new Strike(command.getRow(), command.getColumn(), isHit));
+    handleStrike(command.getRow(), command.getColumn(), game.getStrikesPlayer1(),
+        game.getActiveShipsPlayer2(), game.getSunkenShipsPlayer2());
 
-    if (isHit) {
-      if (gameControlService.isAllCoordinatesMatchedByStrikes(game.getCoordinatesPlayer2(), game.getStrikesPlayer1())) {
-        return handleWin(session, game.getSessionPlayer2(), game);
-      }
+    if (gameControlService.isAllShipsSunk(game.getActiveShipsPlayer2())) {
+      return handleWin(session, game.getSessionPlayer2(), game);
     }
+
     game.setGameState(GameStateType.TURN_PLAYER2);
     game.startTimer();
 
     GameEvent ownEvent = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer1())
         .opponentStrikes(game.getStrikesPlayer2())
-        .strikeRow(command.getRow().toString())
-        .strikeCol(command.getColumn().toString())
-        .isHit(isHit)
         .eventType(GameEventType.TURN_OPPONENT)
         .timeLeft(game.getTimeLeft())
         .build();
@@ -277,9 +290,6 @@ public class GameServiceImpl implements GameService {
         GameEvent.builder()
             .ownStrikes(game.getStrikesPlayer2())
             .opponentStrikes(game.getStrikesPlayer1())
-            .strikeRow(command.getRow().toString())
-            .strikeCol(command.getColumn().toString())
-            .isHit(isHit)
             .eventType(GameEventType.TURN_OWN)
             .timeLeft(game.getTimeLeft())
             .build(),
@@ -292,23 +302,19 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    boolean isHit = gameControlService.isStrikeMatchingACoordinate(command.getRow(), command.getColumn(), game.getCoordinatesPlayer1());
-    game.getStrikesPlayer2().add(new Strike(command.getRow(), command.getColumn(), isHit));
+    handleStrike(command.getRow(), command.getColumn(), game.getStrikesPlayer2(),
+        game.getActiveShipsPlayer1(), game.getSunkenShipsPlayer1());
 
-    if (isHit) {
-      if (gameControlService.isAllCoordinatesMatchedByStrikes(game.getCoordinatesPlayer1(), game.getStrikesPlayer2())) {
-        return handleWin(session, game.getSessionPlayer1(), game);
-      }
+    if (gameControlService.isAllShipsSunk(game.getActiveShipsPlayer1())) {
+      return handleWin(session, game.getSessionPlayer1(), game);
     }
+
     game.setGameState(GameStateType.TURN_PLAYER1);
     game.startTimer();
 
     GameEvent ownEvent = GameEvent.builder()
         .ownStrikes(game.getStrikesPlayer2())
         .opponentStrikes(game.getStrikesPlayer1())
-        .strikeRow(command.getRow().toString())
-        .strikeCol(command.getColumn().toString())
-        .isHit(isHit)
         .eventType(GameEventType.TURN_OPPONENT)
         .timeLeft(game.getTimeLeft())
         .build();
@@ -321,9 +327,6 @@ public class GameServiceImpl implements GameService {
         GameEvent.builder()
             .ownStrikes(game.getStrikesPlayer1())
             .opponentStrikes(game.getStrikesPlayer2())
-            .strikeRow(command.getRow().toString())
-            .strikeCol(command.getColumn().toString())
-            .isHit(isHit)
             .eventType(GameEventType.TURN_OWN)
             .timeLeft(game.getTimeLeft())
             .build(),
@@ -357,5 +360,21 @@ public class GameServiceImpl implements GameService {
     gameSessions.get(gameId).removeTimer();
     gameSessions.remove(gameId);
     log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>", gameId, gameSessions.size());
+  }
+
+  private void handleStrike(int strikeRow, int strikeColumn, List<Strike> ownStrikes,
+      List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
+    boolean isHit = gameControlService.isStrikeMatchingShipCoordinate(strikeRow, strikeColumn, opponentActiveShips);
+    ownStrikes.add(new Strike(new Coordinate(strikeRow, strikeColumn), isHit));
+    if (isHit) {
+      handleStrikeHit(ownStrikes, opponentActiveShips, opponentSunkenShips);
+    }
+  }
+
+  private void handleStrikeHit(List<Strike> ownStrikes, List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
+    gameControlService.getShipIfSunken(ownStrikes, opponentActiveShips).ifPresent(ship -> {
+      opponentActiveShips.remove(ship);
+      opponentSunkenShips.add(ship);
+    });
   }
 }
