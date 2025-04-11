@@ -45,14 +45,9 @@ public class GameServiceImpl implements GameService {
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
   //TODO: null-check variables coming from frontend.
-  //TODO: use Coordinate in GameCommand instead of row and column
-  //TODO: show own and opponents sunken ships in frontend, also make sure it can be logged as game message in frontend when a ship is sunk.
-  //TODO: both sunken and active ships have to be used in frontend on reconnect to properly show ships.
-  //TODO: in GameCommand from frontend, change row and column to a Coordinate object named "strikeCoordinate"
-  //TODO: in ShipDTO and frontend, change col to column.
-
   //TODO: Go trough the code and see if null checks are missing somewhere.
-  //TODO: If possible, move some logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods.
+
+  //TODO: If possible, move more logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods to prevent duplicated code.
   //TODO: Control that the timer is properly cancelled when the game ends (cleanup).
   //TODO: Create unit and integration tests.
 
