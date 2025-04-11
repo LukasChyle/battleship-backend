@@ -12,6 +12,7 @@ import com.example.battleshipbackend.game.model.Strike;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -49,6 +50,8 @@ public class GameServiceImpl implements GameService {
   //TODO: replace row and column in Strike to Coordinate.
   //TODO: in GameEvent, remove strikeRow and Column and use last added Strike for own or opponent in frontend
 
+  //TODO: null-check variables coming from frontend.
+  //TODO: use Coordinate in GameCommand instead of row and column
   //TODO: show own and opponents sunken ships in frontend, also make sure it can be logged as game message in frontend when a ship is sunk.
   //TODO: both sunken and active ships have to be used in frontend on reconnect to properly show ships.
   //TODO: Remove coordinatesPlayer1 & 2 from gameSession and use sunken and active ships to handle all game logic.
@@ -260,10 +263,10 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    handleStrike(command.getRow(), command.getColumn(), game.getStrikesPlayer1(),
+    Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getRow(), command.getColumn(), game.getStrikesPlayer1(),
         game.getActiveShipsPlayer2(), game.getSunkenShipsPlayer2());
 
-    if (gameControlService.isAllShipsSunk(game.getActiveShipsPlayer2())) {
+    if (shipSunk && gameControlService.isAllShipsSunk(game.getActiveShipsPlayer2())) {
       return handleWin(session, game.getSessionPlayer2(), game);
     }
 
@@ -271,23 +274,32 @@ public class GameServiceImpl implements GameService {
     game.startTimer();
 
     GameEvent ownEvent = GameEvent.builder()
-        .ownStrikes(game.getStrikesPlayer1())
-        .opponentStrikes(game.getStrikesPlayer2())
         .eventType(GameEventType.TURN_OPPONENT)
+        .ownStrikes(game.getStrikesPlayer1())
         .timeLeft(game.getTimeLeft())
         .build();
+    if (shipSunk) {
+      ownEvent.setOpponentSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer2()));
+    }
     if (!game.isPlayer2Connected()) {
-      return gameMessageService.getGameEventToMessage(ownEvent, session, false);
+      return gameMessageService.getGameEventToMessage(
+          ownEvent,
+          session,
+          false);
+    }
+    GameEvent opponentEvent = GameEvent.builder()
+        .eventType(GameEventType.TURN_OWN)
+        .opponentStrikes(game.getStrikesPlayer1())
+        .timeLeft(game.getTimeLeft())
+        .build();
+    if (shipSunk) {
+      opponentEvent.setOwnSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer2()));
+      opponentEvent.setOwnActiveShips(gameDtoConverter.toListOfShipDTO(game.getActiveShipsPlayer2()));
     }
     return gameMessageService.getGameEventsToMessages(
         ownEvent,
         session,
-        GameEvent.builder()
-            .ownStrikes(game.getStrikesPlayer2())
-            .opponentStrikes(game.getStrikesPlayer1())
-            .eventType(GameEventType.TURN_OWN)
-            .timeLeft(game.getTimeLeft())
-            .build(),
+        opponentEvent,
         game.getSessionPlayer2(),
         false);
   }
@@ -297,10 +309,10 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    handleStrike(command.getRow(), command.getColumn(), game.getStrikesPlayer2(),
+    Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getRow(), command.getColumn(), game.getStrikesPlayer2(),
         game.getActiveShipsPlayer1(), game.getSunkenShipsPlayer1());
 
-    if (gameControlService.isAllShipsSunk(game.getActiveShipsPlayer1())) {
+    if (shipSunk && gameControlService.isAllShipsSunk(game.getActiveShipsPlayer1())) {
       return handleWin(session, game.getSessionPlayer1(), game);
     }
 
@@ -308,23 +320,29 @@ public class GameServiceImpl implements GameService {
     game.startTimer();
 
     GameEvent ownEvent = GameEvent.builder()
-        .ownStrikes(game.getStrikesPlayer2())
-        .opponentStrikes(game.getStrikesPlayer1())
         .eventType(GameEventType.TURN_OPPONENT)
+        .ownStrikes(game.getStrikesPlayer2())
         .timeLeft(game.getTimeLeft())
         .build();
+    if (shipSunk) {
+      ownEvent.setOpponentSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer1()));
+    }
     if (!game.isPlayer1Connected()) {
       return gameMessageService.getGameEventToMessage(ownEvent, session, false);
+    }
+    GameEvent opponentEvent = GameEvent.builder()
+        .eventType(GameEventType.TURN_OWN)
+        .opponentStrikes(game.getStrikesPlayer2())
+        .timeLeft(game.getTimeLeft())
+        .build();
+    if (shipSunk) {
+      opponentEvent.setOwnSunkenShips(gameDtoConverter.toListOfShipDTO(game.getSunkenShipsPlayer1()));
+      opponentEvent.setOwnActiveShips(gameDtoConverter.toListOfShipDTO(game.getActiveShipsPlayer1()));
     }
     return gameMessageService.getGameEventsToMessages(
         ownEvent,
         session,
-        GameEvent.builder()
-            .ownStrikes(game.getStrikesPlayer1())
-            .opponentStrikes(game.getStrikesPlayer2())
-            .eventType(GameEventType.TURN_OWN)
-            .timeLeft(game.getTimeLeft())
-            .build(),
+        opponentEvent,
         game.getSessionPlayer1(),
         false);
   }
@@ -357,19 +375,23 @@ public class GameServiceImpl implements GameService {
     log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>", gameId, gameSessions.size());
   }
 
-  private void handleStrike(int strikeRow, int strikeColumn, List<Strike> ownStrikes,
+  private Boolean handleStrikeAndSeeIfShipIsSunk(int strikeRow, int strikeColumn, List<Strike> ownStrikes,
       List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
     boolean isHit = gameControlService.isStrikeMatchingShipCoordinate(strikeRow, strikeColumn, opponentActiveShips);
     ownStrikes.add(new Strike(new Coordinate(strikeRow, strikeColumn), isHit));
     if (isHit) {
-      handleStrikeHit(ownStrikes, opponentActiveShips, opponentSunkenShips);
+      return handleHitAndSeeIfShipIsSunk(ownStrikes, opponentActiveShips, opponentSunkenShips);
     }
+    return false;
   }
 
-  private void handleStrikeHit(List<Strike> ownStrikes, List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
-    gameControlService.getShipIfSunken(ownStrikes, opponentActiveShips).ifPresent(ship -> {
-      opponentActiveShips.remove(ship);
-      opponentSunkenShips.add(ship);
-    });
+  private Boolean handleHitAndSeeIfShipIsSunk(List<Strike> ownStrikes, List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
+    return gameControlService.getShipIfSunken(ownStrikes, opponentActiveShips)
+        .map(ship -> {
+          opponentActiveShips.remove(ship);
+          opponentSunkenShips.add(ship);
+          return true;
+        })
+        .orElse(false);
   }
 }

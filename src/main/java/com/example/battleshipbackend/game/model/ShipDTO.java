@@ -11,5 +11,5 @@ public class ShipDTO {
   private Boolean isHorizontal;
   private int length;
   private int row;
-  private int col;
+  private int column;
 }

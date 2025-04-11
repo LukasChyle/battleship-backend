@@ -39,7 +39,7 @@ public class GameDtoConverter {
         .isHorizontal(isShipHorizontal(ship.getCoordinates()))
         .length(ship.getCoordinates().size())
         .row(coordinate.getRow())
-        .col(coordinate.getColumn()).build();
+        .column(coordinate.getColumn()).build();
   }
 
   private Coordinate getCoordinateForShipDTO(List<Coordinate> coordinates) {
@@ -59,9 +59,9 @@ public class GameDtoConverter {
     List<Coordinate> coordinates = new ArrayList<>();
     for (int i = 0; i < shipDTO.getLength(); i++) {
       if (shipDTO.getIsHorizontal()) {
-        coordinates.add(new Coordinate(shipDTO.getRow(), (shipDTO.getCol() + i)));
+        coordinates.add(new Coordinate(shipDTO.getRow(), (shipDTO.getColumn() + i)));
       } else {
-        coordinates.add(new Coordinate((shipDTO.getRow() + i), shipDTO.getCol()));
+        coordinates.add(new Coordinate((shipDTO.getRow() + i), shipDTO.getColumn()));
       }
     }
     return coordinates;
