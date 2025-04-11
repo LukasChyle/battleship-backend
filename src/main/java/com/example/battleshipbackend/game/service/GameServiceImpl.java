@@ -12,7 +12,6 @@ import com.example.battleshipbackend.game.model.Strike;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -45,16 +44,10 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: instead of a list of ships, have lists of sunkenShips and activeShips.
-  // holding list of coordinates of that ships tiles? try without first.
-  //TODO: replace row and column in Strike to Coordinate.
-  //TODO: in GameEvent, remove strikeRow and Column and use last added Strike for own or opponent in frontend
-
   //TODO: null-check variables coming from frontend.
   //TODO: use Coordinate in GameCommand instead of row and column
   //TODO: show own and opponents sunken ships in frontend, also make sure it can be logged as game message in frontend when a ship is sunk.
   //TODO: both sunken and active ships have to be used in frontend on reconnect to properly show ships.
-  //TODO: Remove coordinatesPlayer1 & 2 from gameSession and use sunken and active ships to handle all game logic.
   //TODO: in GameCommand from frontend, change row and column to a Coordinate object named "strikeCoordinate"
   //TODO: in ShipDTO and frontend, change col to column.
 
@@ -237,11 +230,11 @@ public class GameServiceImpl implements GameService {
       log.warn("StrikeRequest: didn't find game with game id: <{}> by session <{}>", command.getGameId(), session.getId());
       return gameMessageService.getStringToMessage("Game with that id does not exist", session);
     }
-    if (command.getRow() == null || command.getColumn() == null) {
+    if (command.getStrikeRow() == null || command.getStrikeColumn() == null) {
       log.warn("Tried to strike without row and/or column values, session <{}>, game id: <{}>", session.getId(), game.getId());
       return gameMessageService.getStringToMessage("Row and/or column values are missing", session);
     }
-    if (command.getRow() > 9 || command.getRow() < 0 || command.getColumn() > 9 || command.getColumn() < 0) {
+    if (command.getStrikeRow() > 9 || command.getStrikeRow() < 0 || command.getStrikeColumn() > 9 || command.getStrikeColumn() < 0) {
       log.warn("Tried to strike with wrong values on row and/or column, session <{}>, game id: <{}>", session.getId(), game.getId());
       return gameMessageService.getStringToMessage("Row and/or column values are not valid", session);
     }
@@ -259,11 +252,11 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
-    if (gameControlService.isStrikePositionAlreadyUsed(command.getRow(), command.getColumn(), game.getStrikesPlayer1())) {
+    if (gameControlService.isStrikePositionAlreadyUsed(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer1())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getRow(), command.getColumn(), game.getStrikesPlayer1(),
+    Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer1(),
         game.getActiveShipsPlayer2(), game.getSunkenShipsPlayer2());
 
     if (shipSunk && gameControlService.isAllShipsSunk(game.getActiveShipsPlayer2())) {
@@ -305,11 +298,11 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
-    if (gameControlService.isStrikePositionAlreadyUsed(command.getRow(), command.getColumn(), game.getStrikesPlayer2())) {
+    if (gameControlService.isStrikePositionAlreadyUsed(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer2())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
-    Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getRow(), command.getColumn(), game.getStrikesPlayer2(),
+    Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer2(),
         game.getActiveShipsPlayer1(), game.getSunkenShipsPlayer1());
 
     if (shipSunk && gameControlService.isAllShipsSunk(game.getActiveShipsPlayer1())) {
