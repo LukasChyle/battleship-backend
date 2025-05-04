@@ -1,5 +1,6 @@
 package com.example.battleshipbackend.webSocket;
 
+import java.util.List;
 import java.util.Map;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,11 @@ import reactor.core.publisher.Mono;
 @Log4j2
 @Configuration
 public class WebSocketConfig {
+
+  private static final List<String> ALLOWED_ORIGINS = List.of(
+      "http://localhost:5173",         // development
+      "https://yippikayey.duckdns.org"    // DDNS domain
+  );
 
   @Bean
   public SimpleUrlHandlerMapping handlerMapping(WebSocketHandler webSocketHandler) {
@@ -28,11 +34,11 @@ public class WebSocketConfig {
   public WebSocketHandler webSocketHandler(GameWebSocketHandler gameWebSocketHandler) {
     // Override the handle method to perform the Origin header validation
     return session -> {
-      // Extract the origin from the session's HTTP headers (since we're not using exchange here directly)
+      // Extract the origin from the session's HTTP headers
       String origin = session.getHandshakeInfo().getHeaders().getFirst(HttpHeaders.ORIGIN);
 
       // Check if the Origin is valid
-      if (origin == null || !origin.equals("http://localhost:5173")) { // Replace with your allowed domain
+      if (origin == null ||  ALLOWED_ORIGINS.stream().noneMatch(origin::equals)) {
         log.warn("Connection attempt from invalid origin: {}", origin);
         return Mono.error(new RuntimeException("Invalid Origin: Access Denied"));
       }
@@ -41,7 +47,5 @@ public class WebSocketConfig {
       return gameWebSocketHandler.handle(session);
     };
   }
-
-
 
 }
