@@ -17,7 +17,7 @@ public class WebSocketConfig {
 
   private static final List<String> ALLOWED_ORIGINS = List.of(
       "http://localhost:5173",         // development
-      "https://yippikayey.duckdns.org"    // DDNS domain
+      "https://lukaschyle@github.io"    // domain
   );
 
   @Bean
