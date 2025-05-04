@@ -12,6 +12,9 @@ RUN ./gradlew build --no-daemon || return 0
 # Copy the rest of the source code
 COPY src ./src
 
+# Make gradlew executable
+RUN chmod +x gradlew
+
 # Build the JAR
 RUN ./gradlew bootJar --no-daemon
 
