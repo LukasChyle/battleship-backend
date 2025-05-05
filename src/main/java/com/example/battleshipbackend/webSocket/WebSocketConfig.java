@@ -1,6 +1,6 @@
 package com.example.battleshipbackend.webSocket;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
@@ -10,17 +10,12 @@ import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAdapter;
 import reactor.core.publisher.Mono;
+import static com.example.battleshipbackend.constants.AllowedOrigins.VALUES;
+
 
 @Log4j2
 @Configuration
 public class WebSocketConfig {
-
-  private static final List<String> ALLOWED_ORIGINS = List.of(
-      "http://localhost:5173",         // development
-      "https://lukaschyle.github.io",
-      "https://yippikayey.duckdns.org"
-
-  );
 
   @Bean
   public SimpleUrlHandlerMapping handlerMapping(WebSocketHandler webSocketHandler) {
@@ -40,14 +35,11 @@ public class WebSocketConfig {
       String origin = session.getHandshakeInfo().getHeaders().getFirst(HttpHeaders.ORIGIN);
 
       // Check if the Origin is valid
-      if (origin == null ||  ALLOWED_ORIGINS.stream().noneMatch(origin::equals)) {
+      if (origin == null || Arrays.stream(VALUES).noneMatch(origin::equals)
+      ) {
         log.warn("Connection attempt from invalid origin: {}", origin);
         return Mono.error(new RuntimeException("Invalid Origin: Access Denied"));
       }
-
-      // Add CORS headers to the handshake response
-      session.getHandshakeInfo().getHeaders().add("Access-Control-Allow-Origin", origin);
-      session.getHandshakeInfo().getHeaders().add("Access-Control-Allow-Credentials", "true");
 
       // If the origin is valid, delegate the handling to the actual GameWebSocketHandler
       return gameWebSocketHandler.handle(session);
