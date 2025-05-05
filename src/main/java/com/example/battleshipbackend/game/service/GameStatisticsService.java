@@ -6,5 +6,5 @@ import reactor.core.publisher.Mono;
 public interface GameStatisticsService {
   Mono<GameStatistics> getStatistics();
 
-  // add methods to store statistic data.
+  // TODO: add methods to store statistic data.
 }

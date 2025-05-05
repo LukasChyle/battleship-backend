@@ -25,7 +25,7 @@ public class GameController {
 
   @GetMapping("/current-games")
   public Mono<ResponseEntity<String>> getCurrentGames() {
-    // fetch data on how many current game sessions are active.
+    // TODO: fetch data on how many current game sessions are active.
     return Mono.just(ResponseEntity.ok("placeholder"));
   }
 
