@@ -17,7 +17,9 @@ public class WebSocketConfig {
 
   private static final List<String> ALLOWED_ORIGINS = List.of(
       "http://localhost:5173",         // development
-      "https://lukaschyle@github.io"    // domain
+      "https://lukaschyle.github.io",
+      "https://yippikayey.duckdns.org"
+
   );
 
   @Bean
@@ -43,9 +45,12 @@ public class WebSocketConfig {
         return Mono.error(new RuntimeException("Invalid Origin: Access Denied"));
       }
 
+      // Add CORS headers to the handshake response
+      session.getHandshakeInfo().getHeaders().add("Access-Control-Allow-Origin", origin);
+      session.getHandshakeInfo().getHeaders().add("Access-Control-Allow-Credentials", "true");
+
       // If the origin is valid, delegate the handling to the actual GameWebSocketHandler
       return gameWebSocketHandler.handle(session);
     };
   }
-
 }
