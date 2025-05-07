@@ -56,7 +56,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .filter(message -> sessionMessageCounters.get(session.getId()).get() <= MAX_MESSAGES)
         .onErrorResume(throwable -> {
           log.error("WebSocketSession <{}>: <{}>", session.getId(), throwable.toString());
-          if (throwable instanceof IOException) { // Todo: might need more exception catching to hande all types of client disconnections, ReactorNettyException?
+          if (throwable instanceof IOException) {
             log.error("Client disconnected from session <{}>", session.getId());
             return Flux.empty();
           }
