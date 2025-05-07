@@ -1,5 +1,8 @@
-package com.example.battleshipbackend.game.model;
+package com.example.battleshipbackend.game.dto.response;
 
+import com.example.battleshipbackend.game.dto.ShipDTO;
+import com.example.battleshipbackend.game.enums.GameEventType;
+import com.example.battleshipbackend.game.model.Strike;
 import java.util.List;
 import lombok.Builder;
 import lombok.Data;

@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
-public class GenerateShipsService {
+public class GenerateAIShipsService {
 
   public List<Ship> getShips() {
 

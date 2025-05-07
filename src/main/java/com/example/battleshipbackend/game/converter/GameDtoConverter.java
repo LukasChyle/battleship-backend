@@ -2,7 +2,7 @@ package com.example.battleshipbackend.game.converter;
 
 import com.example.battleshipbackend.game.model.Coordinate;
 import com.example.battleshipbackend.game.model.Ship;
-import com.example.battleshipbackend.game.model.ShipDTO;
+import com.example.battleshipbackend.game.dto.ShipDTO;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

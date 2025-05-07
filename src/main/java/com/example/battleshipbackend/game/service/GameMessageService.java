@@ -1,6 +1,6 @@
 package com.example.battleshipbackend.game.service;
 
-import com.example.battleshipbackend.game.model.GameEvent;
+import com.example.battleshipbackend.game.dto.response.GameEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;

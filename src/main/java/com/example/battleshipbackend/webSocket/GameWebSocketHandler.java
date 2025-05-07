@@ -1,7 +1,7 @@
 package com.example.battleshipbackend.webSocket;
 
 import com.example.battleshipbackend.game.service.GameService;
-import com.example.battleshipbackend.game.model.GameCommand;
+import com.example.battleshipbackend.game.dto.request.GameCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
         .filter(message -> sessionMessageCounters.get(session.getId()).get() <= MAX_MESSAGES)
         .onErrorResume(throwable -> {
           log.error("WebSocketSession <{}>: <{}>", session.getId(), throwable.toString());
-          if (throwable instanceof IOException) { // Todo: might need more exception catching to hande all types of client disconnections, ReactorNettyException?
+          if (throwable instanceof IOException) {
             log.error("Client disconnected from session <{}>", session.getId());
             return Flux.empty();
           }
@@ -83,12 +83,15 @@ public class GameWebSocketHandler implements WebSocketHandler {
             case RECONNECT -> gameService.handleReconnectRequest(session, command);
           };
         })
-        .then(session.close())
         .doFinally(signal -> {
           log.info("Closed WebSocketSession <{}>", session.getId());
-          gameService.handleClosedSession(session);
           sessionMessageCounters.remove(session.getId());
-        });
+          gameService.handleClosedSession(session)
+              .doOnError(error -> log.error("Error in handleClosedSession: ", error))
+              .onErrorComplete()
+              .subscribe();
+        })
+        .then(session.close());
   }
 }
 

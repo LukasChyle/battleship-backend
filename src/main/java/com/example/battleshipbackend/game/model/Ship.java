@@ -8,6 +8,6 @@ import lombok.Data;
 @AllArgsConstructor
 public class Ship {
 
-  private String id; // needed?
+  private String id; // needed or possible to remove?
   private List<Coordinate> coordinates;
 }

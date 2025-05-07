@@ -1,14 +1,18 @@
 package com.example.battleshipbackend.game.service;
 
+import com.example.battleshipbackend.game.builder.GameEventBuilder;
 import com.example.battleshipbackend.game.converter.GameDtoConverter;
+import com.example.battleshipbackend.game.dto.ActiveGamesDTO;
 import com.example.battleshipbackend.game.model.Coordinate;
-import com.example.battleshipbackend.game.model.GameCommand;
-import com.example.battleshipbackend.game.model.GameEvent;
-import com.example.battleshipbackend.game.model.GameEventType;
+import com.example.battleshipbackend.game.dto.request.GameCommand;
+import com.example.battleshipbackend.game.dto.response.GameEvent;
+import com.example.battleshipbackend.game.enums.GameEventType;
 import com.example.battleshipbackend.game.model.GameSession;
-import com.example.battleshipbackend.game.model.GameStateType;
+import com.example.battleshipbackend.game.enums.GameStateType;
 import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
+import com.example.battleshipbackend.statistics.model.GameStatistics;
+import com.example.battleshipbackend.statistics.service.GameStatisticsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
@@ -31,25 +35,27 @@ public class GameServiceImpl implements GameService {
   private final GameControlService gameControlService;
   private final GameMessageService gameMessageService;
   private final GameDtoConverter gameDtoConverter;
+  private final GameStatisticsService gameStatisticsService;
+  private final GameEventBuilder gameEventBuilder;
 
   @Autowired
   public GameServiceImpl(ObjectMapper objectMapper, GameControlService gameControlService, GameMessageService gameMessageService,
-      GameDtoConverter gameDtoConverter) {
+      GameDtoConverter gameDtoConverter, GameStatisticsService gameStatisticsService, GameEventBuilder gameEventBuilder) {
     this.objectMapper = objectMapper;
     this.gameControlService = gameControlService;
     this.gameMessageService = gameMessageService;
     this.gameDtoConverter = gameDtoConverter;
+    this.gameStatisticsService = gameStatisticsService;
+    this.gameEventBuilder = gameEventBuilder;
   }
 
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
   //TODO: null-check variables coming from frontend.
-  //TODO: Go trough the code and see if null checks are missing somewhere.
-
-  //TODO: If possible, move more logic from handleTurnPlayer1 and handleTurnPlayer2 into own methods to prevent duplicated code.
-  //TODO: Control that the timer is properly cancelled when the game ends (cleanup).
+  //TODO: move more of the code to GameEventBuilder or GameSessionResolver if possible.
   //TODO: Create unit and integration tests.
+  //TODO: try to remove id-variable in Ship and ShipDTO.
 
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
@@ -175,48 +181,58 @@ public class GameServiceImpl implements GameService {
       return gameMessageService.getStringToMessage("Game with that id does not exist", session);
     }
     if (!game.isPlayer2Connected() && game.getSessionPlayer1().equals(session)) {
-      return Mono.empty().then(session.close());
+      return removeGameSession(game.getId(), false)
+          .then(session.close());
     }
+
     GameEvent event = GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build();
     if (game.getSessionPlayer1().equals(session)) {
-      removeGameSession(game.getId());
-      return gameMessageService.getGameEventsToMessages(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true);
+      return removeGameSession(game.getId(), false)
+          .then(gameMessageService.getGameEventsToMessages(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true));
     } else if (game.getSessionPlayer2().equals(session)) {
-      removeGameSession(game.getId());
-      return gameMessageService.getGameEventsToMessages(event, game.getSessionPlayer1(), GameEvent.builder().build(), session, true);
+      return removeGameSession(game.getId(), false)
+          .then(gameMessageService.getGameEventsToMessages(event, game.getSessionPlayer1(), GameEvent.builder().build(), session, true));
     }
     log.warn("LeaveRequest: wrong session <{}> for game: <{}>", session.getId(), game.toString());
     return gameMessageService.getStringToMessage("Wrong session for this game", session);
   }
 
+  /*
+  handleClosedSession only closes the game session if both players are disconnected,
+   else it changes the connected status of the player to false.
+   making it possible to reconnect to the game.
+   */
   @Override
-  public void handleClosedSession(WebSocketSession session) {
+  public Mono<Void> handleClosedSession(WebSocketSession session) {
     String gameId = currentGameIdForWebSocketSession.get(session.getId());
-    if (gameId != null) {
-      currentGameIdForWebSocketSession.remove(session.getId());
-      GameSession game = gameSessions.get(gameId);
-      if (game != null) {
-        if (game.getSessionPlayer1().equals(session)) {
-          if (!game.isPlayer2Connected()) {
-            removeGameSession(gameId);
-          } else {
-            game.setPlayer1Connected(false);
-            log.info("Player1 disconnected from GameSession <{}>", gameId);
-          }
-        } else if (game.getSessionPlayer2().equals(session)) {
-          if (!game.isPlayer1Connected()) {
-            removeGameSession(gameId);
-          } else {
-            game.setPlayer2Connected(false);
-            log.info("Player2 disconnected from GameSession <{}>", gameId);
-          }
-        }
+    if (gameId == null) {
+      return Mono.empty();
+    }
+    currentGameIdForWebSocketSession.remove(session.getId());
+    GameSession game = gameSessions.get(gameId);
+    if (game == null) {
+      return Mono.empty();
+    }
+    if (game.getSessionPlayer1().equals(session)) {
+      if (!game.isPlayer2Connected()) {
+        return removeGameSession(gameId, false);
+      } else {
+        game.setPlayer1Connected(false);
+        log.info("Player1 disconnected from GameSession <{}>", gameId);
+      }
+    } else if (game.getSessionPlayer2().equals(session)) {
+      if (!game.isPlayer1Connected()) {
+        return removeGameSession(gameId, false);
+      } else {
+        game.setPlayer2Connected(false);
+        log.info("Player2 disconnected from GameSession <{}>", gameId);
       }
     }
+    return Mono.empty();
   }
 
   @Override
-  public Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
+  public Mono<Void> handleStrikeRequest(WebSocketSession session,GameCommand command) {
     if (gameControlService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
@@ -335,32 +351,31 @@ public class GameServiceImpl implements GameService {
         false);
   }
 
-  private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
-    removeGameSession(game.getId());
-    GameEvent event1 = GameEvent.builder()
-        .eventType(GameEventType.WON)
-        .build();
-    GameEvent event2 = GameEvent.builder()
-        .eventType(GameEventType.LOST)
-        .build();
-    if (winnerSession.equals(game.getSessionPlayer1())) {
-      event1.setOwnStrikes(game.getStrikesPlayer1());
-      event1.setOpponentStrikes(game.getStrikesPlayer2());
-      event2.setOwnStrikes(game.getStrikesPlayer2());
-      event2.setOpponentStrikes(game.getStrikesPlayer1());
-    } else {
-      event2.setOwnStrikes(game.getStrikesPlayer1());
-      event2.setOpponentStrikes(game.getStrikesPlayer2());
-      event1.setOwnStrikes(game.getStrikesPlayer2());
-      event1.setOpponentStrikes(game.getStrikesPlayer1());
-    }
-    return gameMessageService.getGameEventsToMessages(event1, winnerSession, event2, loserSession, true);
+  @Override
+  public Mono<ActiveGamesDTO> getActiveGamesCount() {
+    return Mono.just(new ActiveGamesDTO(gameSessions.size()));
   }
 
-  private void removeGameSession(String gameId) {
-    gameSessions.get(gameId).removeTimer();
-    gameSessions.remove(gameId);
-    log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>", gameId, gameSessions.size());
+  private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession gameSession) {
+    GameEvent winnerEvent = gameEventBuilder.createWinEvent(winnerSession, gameSession);
+    GameEvent loserEvent = gameEventBuilder.createLoseEvent(loserSession, gameSession);
+
+    return removeGameSession(gameSession.getId(), true)
+        .then(gameMessageService.getGameEventsToMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
+  }
+
+  private Mono<Void> removeGameSession(String gameId, boolean isGameCompleted) {
+    GameSession session = gameSessions.get(gameId);
+    if (session == null) {
+      return Mono.empty();
+    }
+    return handleGameStatistics(session, isGameCompleted)
+        .doFinally(signalType -> {
+          session.removeTimer();
+          gameSessions.remove(gameId);
+          log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>",
+              gameId, gameSessions.size());
+        });
   }
 
   private Boolean handleStrikeAndSeeIfShipIsSunk(int strikeRow, int strikeColumn, List<Strike> ownStrikes,
@@ -381,5 +396,20 @@ public class GameServiceImpl implements GameService {
           return true;
         })
         .orElse(false);
+  }
+
+  private Mono<Void> handleGameStatistics(GameSession session, boolean isGameCompleted) {
+    GameStatistics gameStatistics = GameStatistics.builder()
+        .isAiGame(session.isAiGame())
+        .isCompleted(isGameCompleted)
+        .isWonAgainstAi(session.getSunkenShipsPlayer2() != null && session.getSunkenShipsPlayer2().size() == 5)
+        .hitsPlayer1((int) session.getStrikesPlayer1().stream().filter(Strike::isHit).count())
+        .missesPlayer1((int) session.getStrikesPlayer1().stream().filter(strike -> !strike.isHit()).count())
+        .shipsSunkPlayer1(session.getSunkenShipsPlayer1().size())
+        .hitsPlayer2((int) session.getStrikesPlayer2().stream().filter(Strike::isHit).count())
+        .missesPlayer2((int) session.getStrikesPlayer2().stream().filter(strike -> !strike.isHit()).count())
+        .shipsSunkPlayer2(session.getSunkenShipsPlayer2().size())
+        .build();
+    return gameStatisticsService.saveGameStatistics(gameStatistics);
   }
 }

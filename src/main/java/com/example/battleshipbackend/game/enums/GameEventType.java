@@ -1,4 +1,4 @@
-package com.example.battleshipbackend.game.model;
+package com.example.battleshipbackend.game.enums;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
