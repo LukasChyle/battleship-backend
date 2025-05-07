@@ -11,18 +11,21 @@ public class GameStatisticsMapper {
     if (entity == null) {
       return null;
     }
-
     return GameStatisticsDTO.builder()
-        .totalGamesPlayed(entity.getTotalGamesPlayed())
-        .totalGamesPlayedToEnd(entity.getTotalGamesPlayedToEnd())
-        .totalGamesOpponentLeft(entity.getTotalGamesOpponentLeft())
-        .aiGamesPlayed(entity.getAiGamesPlayed())
-        .aiGamesPlayedToEnd(entity.getAiGamesPlayedToEnd())
+        .pvpGamesTotal(entity.getPvpGamesTotal())
+        .pvpGamesCompleted(entity.getPvpGamesCompleted())
+        .pvpHits(entity.getPvpHits())
+        .pvpMisses(entity.getPvpMisses())
+        .pvpShipsSunk(entity.getPvpShipsSunk())
+        .aiGamesTotal(entity.getAiGamesTotal())
+        .aiGamesCompleted(entity.getAiGamesCompleted())
         .aiGamesWon(entity.getAiGamesWon())
-        .totalSunkenShips(entity.getTotalSunkenShips())
-        .totalHits(entity.getTotalHits())
-        .totalMisses(entity.getTotalMisses())
+        .aiPlayerHits(entity.getAiPlayerHits())
+        .aiPlayerMisses(entity.getAiPlayerMisses())
+        .aiPlayerShipsSunk(entity.getAiPlayerShipsSunk())
+        .aiOpponentHits(entity.getAiOpponentHits())
+        .aiOpponentMisses(entity.getAiOpponentMisses())
+        .aiOpponentShipsSunk(entity.getAiOpponentShipsSunk())
         .build();
   }
 }
-
