@@ -179,16 +179,21 @@ public class GameServiceImpl implements GameService {
     }
     GameEvent event = GameEvent.builder().eventType(GameEventType.OPPONENT_LEFT).build();
     if (game.getSessionPlayer1().equals(session)) {
-      removeGameSession(game.getId());
+      removeGameSession(game.getId(), false, false);
       return gameMessageService.getGameEventsToMessages(event, game.getSessionPlayer2(), GameEvent.builder().build(), session, true);
     } else if (game.getSessionPlayer2().equals(session)) {
-      removeGameSession(game.getId());
+      removeGameSession(game.getId(), false, false);
       return gameMessageService.getGameEventsToMessages(event, game.getSessionPlayer1(), GameEvent.builder().build(), session, true);
     }
     log.warn("LeaveRequest: wrong session <{}> for game: <{}>", session.getId(), game.toString());
     return gameMessageService.getStringToMessage("Wrong session for this game", session);
   }
 
+  /*
+  handleClosedSession only closes the game session if both players are disconnected,
+   else it changes the connected status of the player to false.
+   making it possible to reconnect to the game.
+   */
   @Override
   public void handleClosedSession(WebSocketSession session) {
     String gameId = currentGameIdForWebSocketSession.get(session.getId());
@@ -198,14 +203,14 @@ public class GameServiceImpl implements GameService {
       if (game != null) {
         if (game.getSessionPlayer1().equals(session)) {
           if (!game.isPlayer2Connected()) {
-            removeGameSession(gameId);
+            removeGameSession(gameId, false, false);
           } else {
             game.setPlayer1Connected(false);
             log.info("Player1 disconnected from GameSession <{}>", gameId);
           }
         } else if (game.getSessionPlayer2().equals(session)) {
           if (!game.isPlayer1Connected()) {
-            removeGameSession(gameId);
+            removeGameSession(gameId, false, false);
           } else {
             game.setPlayer2Connected(false);
             log.info("Player2 disconnected from GameSession <{}>", gameId);
@@ -336,7 +341,7 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession game) {
-    removeGameSession(game.getId());
+    removeGameSession(game.getId(), true, false);
     GameEvent event1 = GameEvent.builder()
         .eventType(GameEventType.WON)
         .build();
@@ -357,8 +362,13 @@ public class GameServiceImpl implements GameService {
     return gameMessageService.getGameEventsToMessages(event1, winnerSession, event2, loserSession, true);
   }
 
-  private void removeGameSession(String gameId) {
-    gameSessions.get(gameId).removeTimer();
+  private void removeGameSession(String gameId, boolean isPlayedToEnd, boolean isAiGame) {
+    GameSession session = gameSessions.get(gameId);
+    if (session == null) {
+      return;
+    }
+    handleGameStatistics(session, isPlayedToEnd, isAiGame);
+    session.removeTimer();
     gameSessions.remove(gameId);
     log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>", gameId, gameSessions.size());
   }
@@ -381,5 +391,24 @@ public class GameServiceImpl implements GameService {
           return true;
         })
         .orElse(false);
+  }
+
+  private void handleGameStatistics(GameSession session, boolean isPlayedToEnd, boolean isAiGame) {
+
+    int totalHits = session.getStrikesPlayer1().size() + session.getStrikesPlayer2().size();
+    int totalSunkenShips = session.getSunkenShipsPlayer1().size() +
+        session.getSunkenShipsPlayer2().size();
+
+    /*
+  private Long totalGamesPlayed;
+  private Long totalGamesPlayedToEnd;
+  private Long totalGamesOpponentLeft;
+  private Long aiGamesPlayed;
+  private Long aiGamesPlayedToEnd;
+  private Long aiGamesWon;
+  private Long totalSunkenShips;
+  private Long totalHits;
+  private Long totalMisses;
+     */
   }
 }

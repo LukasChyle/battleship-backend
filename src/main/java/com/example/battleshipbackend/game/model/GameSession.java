@@ -46,6 +46,8 @@ public class GameSession {
   private final List<Ship> activeShipsPlayer2 = new ArrayList<>();
   private final List<Ship> sunkenShipsPlayer1 = new ArrayList<>();
   private final List<Ship> sunkenShipsPlayer2 = new ArrayList<>();
+  private int player1Hits = 0;
+  private int player2Hits = 0;
 
 
 
