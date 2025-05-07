@@ -2,6 +2,7 @@ package com.example.battleshipbackend.game.service;
 
 import com.example.battleshipbackend.game.builder.GameEventBuilder;
 import com.example.battleshipbackend.game.converter.GameDtoConverter;
+import com.example.battleshipbackend.game.dto.ActiveGamesDTO;
 import com.example.battleshipbackend.game.model.Coordinate;
 import com.example.battleshipbackend.game.dto.request.GameCommand;
 import com.example.battleshipbackend.game.dto.response.GameEvent;
@@ -10,7 +11,6 @@ import com.example.battleshipbackend.game.model.GameSession;
 import com.example.battleshipbackend.game.enums.GameStateType;
 import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
-import com.example.battleshipbackend.game.resolver.GameSessionResolver;
 import com.example.battleshipbackend.statistics.model.GameStatistics;
 import com.example.battleshipbackend.statistics.service.GameStatisticsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -349,6 +349,11 @@ public class GameServiceImpl implements GameService {
         opponentEvent,
         game.getSessionPlayer1(),
         false);
+  }
+
+  @Override
+  public Mono<ActiveGamesDTO> getActiveGamesCount() {
+    return Mono.just(new ActiveGamesDTO(gameSessions.size()));
   }
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession gameSession) {
