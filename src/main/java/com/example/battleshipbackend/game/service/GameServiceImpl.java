@@ -2,11 +2,11 @@ package com.example.battleshipbackend.game.service;
 
 import com.example.battleshipbackend.game.converter.GameDtoConverter;
 import com.example.battleshipbackend.game.model.Coordinate;
-import com.example.battleshipbackend.game.model.GameCommand;
-import com.example.battleshipbackend.game.model.GameEvent;
-import com.example.battleshipbackend.game.model.GameEventType;
+import com.example.battleshipbackend.game.dto.request.GameCommand;
+import com.example.battleshipbackend.game.dto.response.GameEvent;
+import com.example.battleshipbackend.game.enums.GameEventType;
 import com.example.battleshipbackend.game.model.GameSession;
-import com.example.battleshipbackend.game.model.GameStateType;
+import com.example.battleshipbackend.game.enums.GameStateType;
 import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
 import com.fasterxml.jackson.databind.ObjectMapper;

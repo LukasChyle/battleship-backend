@@ -1,4 +1,4 @@
-package com.example.battleshipbackend.game.entity;
+package com.example.battleshipbackend.statistics.entity;
 
 
 import lombok.Data;
@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @Table("game_statistics")
-public class GameStatistics {
+public class GameStatisticsEntity {
 
   @Id
   private Integer id;

@@ -1,4 +1,4 @@
-package com.example.battleshipbackend.game.model;
+package com.example.battleshipbackend.game.dto;
 
 import lombok.Builder;
 import lombok.Data;
@@ -7,7 +7,7 @@ import lombok.Data;
 @Builder
 public class ShipDTO {
 
-  private String id; // needed?
+  private String id; // needed or possible to remove?
   private Boolean isHorizontal;
   private int length;
   private int row;

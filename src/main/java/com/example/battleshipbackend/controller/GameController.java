@@ -1,7 +1,7 @@
-package com.example.battleshipbackend.game.controller;
+package com.example.battleshipbackend.controller;
 
-import com.example.battleshipbackend.game.entity.GameStatistics;
-import com.example.battleshipbackend.game.service.GameStatisticsService;
+import com.example.battleshipbackend.statistics.dto.GameStatisticsDTO;
+import com.example.battleshipbackend.statistics.service.GameStatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +19,7 @@ public class GameController {
   }
 
   @GetMapping("/game-statistics")
-  public Mono<GameStatistics> getGameStatistics() {
+  public Mono<GameStatisticsDTO> getGameStatistics() {
     return gameStatisticsService.getStatistics();
   }
 

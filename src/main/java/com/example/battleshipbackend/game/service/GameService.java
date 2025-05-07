@@ -1,6 +1,6 @@
 package com.example.battleshipbackend.game.service;
 
-import com.example.battleshipbackend.game.model.GameCommand;
+import com.example.battleshipbackend.game.dto.request.GameCommand;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 

@@ -1,7 +1,7 @@
 package com.example.battleshipbackend.webSocket;
 
 import com.example.battleshipbackend.game.service.GameService;
-import com.example.battleshipbackend.game.model.GameCommand;
+import com.example.battleshipbackend.game.dto.request.GameCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

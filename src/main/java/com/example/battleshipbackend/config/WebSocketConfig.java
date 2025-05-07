@@ -1,5 +1,6 @@
-package com.example.battleshipbackend.webSocket;
+package com.example.battleshipbackend.config;
 
+import com.example.battleshipbackend.webSocket.GameWebSocketHandler;
 import java.util.Arrays;
 import java.util.Map;
 import lombok.extern.log4j.Log4j2;
