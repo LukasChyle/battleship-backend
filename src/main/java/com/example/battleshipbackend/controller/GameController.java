@@ -34,7 +34,6 @@ public class GameController {
 
   @GetMapping("/server-status")
   public Mono<ResponseEntity<String>> checkServerStatus() {
-    return Mono.just(ResponseEntity.ok("UP")
-    );
+    return Mono.just(ResponseEntity.ok("UP"));
   }
 }
