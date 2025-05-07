@@ -47,6 +47,12 @@ A low-level, high-performance networking framework for building scalable, asynch
 ### Spring Boot Starter WebFlux
 A module for developing reactive, non-blocking web applications using Spring WebFlux. Supports built-in reactive servers like Netty or Undertow and is optimized for WebSocket handling.
 
+### R2DBC
+A reactive, non-blocking alternative to JDBC for accessing relational databases. Designed for use with frameworks like Spring WebFlux to support asynchronous data operations using Mono and Flux.
+
+### MariaDB
+An open-source relational database system and MySQL-compatible fork, known for speed, reliability, and active community-driven development.
+
 ### Lombok
 A Java library that reduces boilerplate code by generating getter/setter methods, constructors, and more at compile time. Improves code readability but adds compile-time dependencies that can affect debugging.
 
