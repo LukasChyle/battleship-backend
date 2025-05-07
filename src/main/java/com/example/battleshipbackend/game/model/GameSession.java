@@ -11,7 +11,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.Getter;
-
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.web.reactive.socket.WebSocketSession;
@@ -21,7 +20,6 @@ import reactor.core.publisher.Mono;
 @Getter
 @Setter
 public class GameSession {
-
   private final ObjectMapper objectMapper;
   private final ScheduledExecutorService executorService;
 
@@ -38,6 +36,7 @@ public class GameSession {
   private GameStateType gameState = GameStateType.WAITING_OPPONENT;
   private WebSocketSession sessionPlayer1;
   private WebSocketSession sessionPlayer2;
+  private boolean isAiGame = false;
   private boolean isPlayer1Connected = false;
   private boolean isPlayer2Connected = false;
   private final List<Strike> strikesPlayer1 = new ArrayList<>();
@@ -46,10 +45,6 @@ public class GameSession {
   private final List<Ship> activeShipsPlayer2 = new ArrayList<>();
   private final List<Ship> sunkenShipsPlayer1 = new ArrayList<>();
   private final List<Ship> sunkenShipsPlayer2 = new ArrayList<>();
-  private int player1Hits = 0;
-  private int player2Hits = 0;
-
-
 
   public void startTimer() {
     removeTimer();
@@ -72,7 +67,6 @@ public class GameSession {
     }
     return scheduledFuture.getDelay(TimeUnit.SECONDS);
   }
-
 
   private void executeTimeout() {
     if (objectMapper == null) {

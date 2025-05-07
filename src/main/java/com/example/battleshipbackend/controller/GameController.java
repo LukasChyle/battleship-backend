@@ -20,7 +20,7 @@ public class GameController {
 
   @GetMapping("/game-statistics")
   public Mono<GameStatisticsDTO> getGameStatistics() {
-    return gameStatisticsService.getStatistics();
+    return gameStatisticsService.getGameStatistics();
   }
 
   @GetMapping("/current-games")

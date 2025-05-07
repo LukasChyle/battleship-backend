@@ -83,12 +83,15 @@ public class GameWebSocketHandler implements WebSocketHandler {
             case RECONNECT -> gameService.handleReconnectRequest(session, command);
           };
         })
-        .then(session.close())
         .doFinally(signal -> {
           log.info("Closed WebSocketSession <{}>", session.getId());
-          gameService.handleClosedSession(session);
           sessionMessageCounters.remove(session.getId());
-        });
+          gameService.handleClosedSession(session)
+              .doOnError(error -> log.error("Error in handleClosedSession: ", error))
+              .onErrorComplete()
+              .subscribe();
+        })
+        .then(session.close());
   }
 }
 
