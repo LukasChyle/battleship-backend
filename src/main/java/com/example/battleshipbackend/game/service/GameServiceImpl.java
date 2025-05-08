@@ -70,7 +70,7 @@ public class GameServiceImpl implements GameService {
     }
 
     GameSession game = gameSessions.values().stream()
-        .filter(e -> e.getSessionPlayer2() == null)
+        .filter(e -> e.getSessionPlayer2() == null && !e.isGameStarted())
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
 
@@ -93,6 +93,7 @@ public class GameServiceImpl implements GameService {
       game.setSessionPlayer2(session);
       game.setPlayer2Connected(true);
       currentGameIdForWebSocketSession.put(session.getId(), game.getId());
+      game.setGameStarted(true);
       game.startTimer();
 
       game.setGameState(GameStateType.TURN_PLAYER1);
@@ -399,17 +400,20 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleGameStatistics(GameSession session, boolean isGameCompleted) {
-    GameStatistics gameStatistics = GameStatistics.builder()
-        .isAiGame(session.isAiGame())
-        .isCompleted(isGameCompleted)
-        .isWonAgainstAi(session.getSunkenShipsPlayer2() != null && session.getSunkenShipsPlayer2().size() == 5)
-        .hitsPlayer1((int) session.getStrikesPlayer1().stream().filter(Strike::isHit).count())
-        .missesPlayer1((int) session.getStrikesPlayer1().stream().filter(strike -> !strike.isHit()).count())
-        .shipsSunkPlayer1(session.getSunkenShipsPlayer1().size())
-        .hitsPlayer2((int) session.getStrikesPlayer2().stream().filter(Strike::isHit).count())
-        .missesPlayer2((int) session.getStrikesPlayer2().stream().filter(strike -> !strike.isHit()).count())
-        .shipsSunkPlayer2(session.getSunkenShipsPlayer2().size())
-        .build();
-    return gameStatisticsService.saveGameStatistics(gameStatistics);
+    if (session.isGameStarted()) {
+      GameStatistics gameStatistics = GameStatistics.builder()
+          .isAiGame(session.isAiGame())
+          .isCompleted(isGameCompleted)
+          .isWonAgainstAi(session.getSunkenShipsPlayer2() != null && session.getSunkenShipsPlayer2().size() == 5)
+          .hitsPlayer1((int) session.getStrikesPlayer1().stream().filter(Strike::isHit).count())
+          .missesPlayer1((int) session.getStrikesPlayer1().stream().filter(strike -> !strike.isHit()).count())
+          .shipsSunkPlayer1(session.getSunkenShipsPlayer1().size())
+          .hitsPlayer2((int) session.getStrikesPlayer2().stream().filter(Strike::isHit).count())
+          .missesPlayer2((int) session.getStrikesPlayer2().stream().filter(strike -> !strike.isHit()).count())
+          .shipsSunkPlayer2(session.getSunkenShipsPlayer2().size())
+          .build();
+      return gameStatisticsService.saveGameStatistics(gameStatistics);
+    }
+    return Mono.empty();
   }
 }

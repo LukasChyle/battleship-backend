@@ -36,6 +36,7 @@ public class GameSession {
   private GameStateType gameState = GameStateType.WAITING_OPPONENT;
   private WebSocketSession sessionPlayer1;
   private WebSocketSession sessionPlayer2;
+  private boolean isGameStarted = false;
   private boolean isAiGame = false;
   private boolean isPlayer1Connected = false;
   private boolean isPlayer2Connected = false;
