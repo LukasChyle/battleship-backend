@@ -52,8 +52,8 @@ public class GameControlService {
   }
 
   private boolean isLengthOfShipsValid(List<Ship> ships) {
-    return ships.stream().filter(e -> e.getCoordinates().size() == 2).count() == 2
-        && ships.stream().filter(e -> e.getCoordinates().size() == 3).count() == 1
+    return ships.stream().filter(e -> e.getCoordinates().size() == 2).count() == 1
+        && ships.stream().filter(e -> e.getCoordinates().size() == 3).count() == 2
         && ships.stream().filter(e -> e.getCoordinates().size() == 4).count() == 1
         && ships.stream().filter(e -> e.getCoordinates().size() == 5).count() == 1;
   }
