@@ -12,10 +12,8 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 
 @Component
 public class GameEventBuilder {
-
   private final GameSessionResolver gameSessionResolver;
   private final GameDtoConverter gameDtoConverter;
-
 
   @Autowired
   public GameEventBuilder(GameSessionResolver gameSessionResolver, GameDtoConverter gameDtoConverter) {
