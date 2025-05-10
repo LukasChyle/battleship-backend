@@ -20,15 +20,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
-@Log4j2
 @Service
 public class GameServiceImpl implements GameService {
+
   private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
   private final ObjectMapper objectMapper;
   private final GameRequestValidationService gameRequestValidationService;
@@ -72,28 +71,14 @@ public class GameServiceImpl implements GameService {
     GameSession gameSession = gameSessions.values().stream()
         .filter(e -> e.getSessionPlayer2() == null && !e.isGameStarted() && !e.isAgainstFriend())
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
-    log.info("Added player <{}> to GameSession <{}>", webSocketSession.getId(), gameSession.getId());
     if (gameSession.getSessionPlayer1() == null) {
-      gameSession.setActiveShipsPlayer1(ships);
-      gameSession.setId(UUID.randomUUID().toString());
-      gameSession.setSessionPlayer1(webSocketSession);
-      gameSession.setPlayer1Connected(true);
-      gameSessions.put(gameSession.getId(), gameSession);
-      log.info("Created new GameSession <{}>", gameSession.getId());
-      currentGameIdForWebSocketSession.put(webSocketSession.getId(), gameSession.getId());
+      initializeNewGameSessionWithPlayer1(webSocketSession, gameSession, ships, false);
       return gameMessageService.getGameEventToMessage(
           gameEventBuilder.getWaitingOpponentEvent(gameSession.getId()),
           webSocketSession,
           false);
     } else {
-      setSecondPlayerToGame(gameSession, webSocketSession, ships);
-      startGame(gameSession);
-      return gameMessageService.getGameEventsToMessages(
-          gameEventBuilder.getAdversaryStartGameEvent(gameSession),
-          gameSession.getSessionPlayer1(),
-          gameEventBuilder.getCurrentSessionStartGameEvent(gameSession),
-          webSocketSession,
-          false);
+      return setPlayer2ToGameAndStart(gameSession, webSocketSession, ships);
     }
   }
 
@@ -107,13 +92,7 @@ public class GameServiceImpl implements GameService {
     GameSession gameSession;
     if (command.getGameId() == null || command.getGameId().isEmpty()) {
       gameSession = new GameSession(executorService, objectMapper);
-      gameSession.setAgainstFriend(true);
-      gameSession.setActiveShipsPlayer1(ships);
-      gameSession.setId(UUID.randomUUID().toString());
-      gameSession.setSessionPlayer1(webSocketSession);
-      gameSession.setPlayer1Connected(true);
-      gameSessions.put(gameSession.getId(), gameSession);
-      currentGameIdForWebSocketSession.put(webSocketSession.getId(), gameSession.getId());
+      initializeNewGameSessionWithPlayer1(webSocketSession, gameSession, ships, true);
       return gameMessageService.getGameEventToMessage(
           gameEventBuilder.getWaitingFriendEvent(gameSession.getId()),
           webSocketSession,
@@ -124,14 +103,7 @@ public class GameServiceImpl implements GameService {
         return gameMessageService.getGameEventToMessage(GameEvent.builder().eventType(GameEventType.WRONG_GAME_ID).build(),
             webSocketSession, false);
       }
-      setSecondPlayerToGame(gameSession, webSocketSession, ships);
-      startGame(gameSession);
-      return gameMessageService.getGameEventsToMessages(
-          gameEventBuilder.getAdversaryStartGameEvent(gameSession),
-          gameSession.getSessionPlayer1(),
-          gameEventBuilder.getCurrentSessionStartGameEvent(gameSession),
-          webSocketSession,
-          false);
+      return setPlayer2ToGameAndStart(gameSession, webSocketSession, ships);
     }
   }
 
@@ -218,14 +190,12 @@ public class GameServiceImpl implements GameService {
         return removeGameSession(gameId, false);
       } else {
         game.setPlayer1Connected(false);
-        log.info("Player1 disconnected from GameSession <{}>", gameId);
       }
     } else if (game.getSessionPlayer2().equals(session)) {
       if (!game.isPlayer1Connected()) {
         return removeGameSession(gameId, false);
       } else {
         game.setPlayer2Connected(false);
-        log.info("Player2 disconnected from GameSession <{}>", gameId);
       }
     }
     return Mono.empty();
@@ -292,8 +262,6 @@ public class GameServiceImpl implements GameService {
         .doFinally(signalType -> {
           session.removeTimer();
           gameSessions.remove(gameId);
-          log.info("Removed GameSession <{}>, numbers of GameSessions: <{}>",
-              gameId, gameSessions.size());
         });
   }
 
@@ -335,16 +303,30 @@ public class GameServiceImpl implements GameService {
     return Mono.empty();
   }
 
-  private void setSecondPlayerToGame(GameSession gameSession, WebSocketSession session, List<Ship> ships) {
-    gameSession.setActiveShipsPlayer2(ships);
-    gameSession.setSessionPlayer2(session);
-    gameSession.setPlayer2Connected(true);
-    currentGameIdForWebSocketSession.put(session.getId(), gameSession.getId());
+  private void initializeNewGameSessionWithPlayer1(WebSocketSession webSocketSession, GameSession gameSession, List<Ship> ships,
+      boolean isAgainstFriend) {
+    gameSession.setAgainstFriend(isAgainstFriend);
+    gameSession.setActiveShipsPlayer1(ships);
+    gameSession.setId(UUID.randomUUID().toString());
+    gameSession.setSessionPlayer1(webSocketSession);
+    gameSession.setPlayer1Connected(true);
+    gameSession.setGameState(GameStateType.TURN_PLAYER1);
+    gameSessions.put(gameSession.getId(), gameSession);
+    currentGameIdForWebSocketSession.put(webSocketSession.getId(), gameSession.getId());
   }
 
-  private void startGame(GameSession gameSession) {
-    gameSession.setGameState(GameStateType.TURN_PLAYER1);
+  private Mono<Void> setPlayer2ToGameAndStart(GameSession gameSession, WebSocketSession webSocketSession, List<Ship> ships) {
+    gameSession.setActiveShipsPlayer2(ships);
+    gameSession.setSessionPlayer2(webSocketSession);
+    gameSession.setPlayer2Connected(true);
+    currentGameIdForWebSocketSession.put(webSocketSession.getId(), gameSession.getId());
     gameSession.setGameStarted(true);
     gameSession.startTimer();
+    return gameMessageService.getGameEventsToMessages(
+        gameEventBuilder.getAdversaryStartGameEvent(gameSession),
+        gameSession.getSessionPlayer1(),
+        gameEventBuilder.getCurrentSessionStartGameEvent(gameSession),
+        webSocketSession,
+        false);
   }
 }

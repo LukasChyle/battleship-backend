@@ -33,6 +33,7 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
   @Override
   public Mono<Void> validateUUID(WebSocketSession webSocketSession, String uuid) {
     if (gameRuleService.isNotUUID(uuid)) {
+      log.warn("Invalid UUID, session <{}>, UUID <{}>", webSocketSession.getId(), uuid);
       return gameMessageService.getStringToMessage("Game id is not valid.", webSocketSession);
     }
     return null;
