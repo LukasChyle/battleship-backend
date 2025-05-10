@@ -9,7 +9,6 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 
 @Component
 public class GameSessionResolver {
-
   public WebSocketSession getAdversarySession(WebSocketSession webSocketSession, GameSession gameSession) {
     return webSocketSession.equals(gameSession.getSessionPlayer1())
         ? gameSession.getSessionPlayer2()
@@ -51,6 +50,4 @@ public class GameSessionResolver {
         ? gameSession.isPlayer2Connected()
         : gameSession.isPlayer1Connected();
   }
-
-
 }

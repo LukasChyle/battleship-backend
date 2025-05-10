@@ -8,7 +8,6 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
 public interface GameRequestValidationService {
-
   Mono<Void> validateUUID(WebSocketSession webSocketSession, String uuid);
 
   Mono<Void> validateJoinRequest(WebSocketSession webSocketSession, List<Ship> ships, boolean isInCurrentGame);
