@@ -52,10 +52,11 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: null-check variables coming from frontend.
+  //TODO: Add function to play against friend.
+  //TODO: Create class to check variables of GameCommand (depending on gameCommandType) before it reaches GameServiceImpl.
   //TODO: move more of the code to GameEventBuilder or GameSessionResolver if possible.
   //TODO: Create unit and integration tests.
-  //TODO: try to remove id-variable in Ship and ShipDTO.
+  //TODO: Try to remove id-variable in Ship and ShipDTO.
 
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
