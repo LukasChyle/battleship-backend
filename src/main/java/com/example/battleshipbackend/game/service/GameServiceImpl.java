@@ -32,17 +32,17 @@ public class GameServiceImpl implements GameService {
 
   private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
   private final ObjectMapper objectMapper;
-  private final GameControlService gameControlService;
+  private final GameRuleService gameRuleService;
   private final GameMessageService gameMessageService;
   private final GameDtoConverter gameDtoConverter;
   private final GameStatisticsService gameStatisticsService;
   private final GameEventBuilder gameEventBuilder;
 
   @Autowired
-  public GameServiceImpl(ObjectMapper objectMapper, GameControlService gameControlService, GameMessageService gameMessageService,
+  public GameServiceImpl(ObjectMapper objectMapper, GameRuleService gameRuleService, GameMessageService gameMessageService,
       GameDtoConverter gameDtoConverter, GameStatisticsService gameStatisticsService, GameEventBuilder gameEventBuilder) {
     this.objectMapper = objectMapper;
-    this.gameControlService = gameControlService;
+    this.gameRuleService = gameRuleService;
     this.gameMessageService = gameMessageService;
     this.gameDtoConverter = gameDtoConverter;
     this.gameStatisticsService = gameStatisticsService;
@@ -52,6 +52,7 @@ public class GameServiceImpl implements GameService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
+  // GameRequestValidationService
   //TODO: Add function to play against friend.
   //TODO: Create class to check variables of GameCommand (depending on gameCommandType) before it reaches GameServiceImpl.
   //TODO: move more of the code to GameEventBuilder or GameSessionResolver if possible.
@@ -59,19 +60,18 @@ public class GameServiceImpl implements GameService {
   //TODO: Try to remove id-variable in Ship and ShipDTO.
 
   @Override
-  public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command) {
+  public Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command, List<Ship> ships) {
     if (currentGameIdForWebSocketSession.get(session.getId()) != null) {
       log.warn("Tried to join a game when already in a game, session <{}>", session.getId());
       return gameMessageService.getStringToMessage("Can't join a game when already in one", session);
     }
-    List<Ship> ships = gameDtoConverter.toListOfShip(command.getShips());
-    if (!gameControlService.isShipsValid(ships)) {
+    if (!gameRuleService.isShipsValid(ships)) {
       log.warn("Tried to join a game with invalid ships, session <{}>, ships <{}>", session.getId(), command.getShips());
       return gameMessageService.getStringToMessage("Can't join a game without correct setup of ships.", session);
     }
 
     GameSession game = gameSessions.values().stream()
-        .filter(e -> e.getSessionPlayer2() == null && !e.isGameStarted())
+        .filter(e -> e.getSessionPlayer2() == null && !e.isGameStarted() && !e.isAgainstFriend())
         .findFirst().orElseGet(() -> new GameSession(executorService, objectMapper));
     log.info("Added player <{}> to GameSession <{}>", session.getId(), game.getId());
 
@@ -90,27 +90,56 @@ public class GameServiceImpl implements GameService {
           session,
           false);
     } else {
-      game.setActiveShipsPlayer2(ships);
-      game.setSessionPlayer2(session);
-      game.setPlayer2Connected(true);
-      currentGameIdForWebSocketSession.put(session.getId(), game.getId());
-      game.setGameStarted(true);
-      game.startTimer();
-
-      game.setGameState(GameStateType.TURN_PLAYER1);
-      GameEvent eventPlayer1 = GameEvent.builder()
-          .eventType(GameEventType.TURN_OWN)
-          .timeLeft(game.getTimeLeft())
-          .build();
-      GameEvent eventPlayer2 = GameEvent.builder()
-          .gameId(game.getId())
-          .eventType(GameEventType.TURN_OPPONENT)
-          .timeLeft(game.getTimeLeft())
-          .build();
+      setSecondPlayerToGame(game, session, ships);
+      startGame(game);
       return gameMessageService.getGameEventsToMessages(
-          eventPlayer1,
+          gameEventBuilder.getAdversaryStartGameEvent(game),
           game.getSessionPlayer1(),
-          eventPlayer2,
+          gameEventBuilder.getCurrentSessionStartGameEvent(game),
+          session,
+          false);
+    }
+  }
+
+  @Override
+  public Mono<Void> handleJoinFriendRequest(WebSocketSession session, GameCommand command, List<Ship> ships) {
+    if (currentGameIdForWebSocketSession.get(session.getId()) != null) {
+      log.warn("Tried to join a game when already in a game, session <{}>", session.getId());
+      return gameMessageService.getStringToMessage("Can't join a game when already in one", session);
+    }
+
+    if (!gameRuleService.isShipsValid(ships)) {
+      log.warn("Tried to join a game with invalid ships, session <{}>, ships <{}>", session.getId(), command.getShips());
+      return gameMessageService.getStringToMessage("Can't join a game without correct setup of ships.", session);
+    }
+
+    GameSession game;
+    if (command.getGameId() == null || command.getGameId().isEmpty()) {
+      game = new GameSession(executorService, objectMapper);
+      game.setAgainstFriend(true);
+      game.setActiveShipsPlayer1(ships);
+      game.setId(UUID.randomUUID().toString());
+      game.setSessionPlayer1(session);
+      game.setPlayer1Connected(true);
+      gameSessions.put(game.getId(), game);
+      currentGameIdForWebSocketSession.put(session.getId(), game.getId());
+      return gameMessageService.getGameEventToMessage(GameEvent.builder()
+              .gameId(game.getId())
+              .eventType(GameEventType.WAITING_FRIEND)
+              .build(),
+          session,
+          false);
+    } else {
+      game = gameSessions.get(command.getGameId());
+      if (game == null) {
+        return gameMessageService.getGameEventToMessage(GameEvent.builder().eventType(GameEventType.WRONG_GAME_ID).build(), session, false);
+      }
+      setSecondPlayerToGame(game, session, ships);
+      startGame(game);
+      return gameMessageService.getGameEventsToMessages(
+          gameEventBuilder.getAdversaryStartGameEvent(game),
+          game.getSessionPlayer1(),
+          gameEventBuilder.getCurrentSessionStartGameEvent(game),
           session,
           false);
     }
@@ -118,7 +147,7 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command) {
-    if (gameControlService.isNotUUID(command.getGameId())) {
+    if (gameRuleService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
     GameSession game = gameSessions.get(command.getGameId());
@@ -174,7 +203,7 @@ public class GameServiceImpl implements GameService {
 
   @Override
   public Mono<Void> handleLeaveRequest(WebSocketSession session, GameCommand command) {
-    if (gameControlService.isNotUUID(command.getGameId())) {
+    if (gameRuleService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
     GameSession game = gameSessions.get(command.getGameId());
@@ -234,8 +263,8 @@ public class GameServiceImpl implements GameService {
   }
 
   @Override
-  public Mono<Void> handleStrikeRequest(WebSocketSession session,GameCommand command) {
-    if (gameControlService.isNotUUID(command.getGameId())) {
+  public Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command) {
+    if (gameRuleService.isNotUUID(command.getGameId())) {
       return gameMessageService.getStringToMessage("Game id is not valid.", session);
     }
     GameSession game = gameSessions.get(command.getGameId());
@@ -265,14 +294,14 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleTurnPlayer1(WebSocketSession session, GameSession game, GameCommand command) {
-    if (gameControlService.isStrikePositionAlreadyUsed(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer1())) {
+    if (gameRuleService.isStrikePositionAlreadyUsed(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer1())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
     Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer1(),
         game.getActiveShipsPlayer2(), game.getSunkenShipsPlayer2());
 
-    if (shipSunk && gameControlService.isAllShipsSunk(game.getActiveShipsPlayer2())) {
+    if (shipSunk && gameRuleService.isAllShipsSunk(game.getActiveShipsPlayer2())) {
       return handleWin(session, game.getSessionPlayer2(), game);
     }
 
@@ -311,14 +340,14 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleTurnPlayer2(WebSocketSession session, GameSession game, GameCommand command) {
-    if (gameControlService.isStrikePositionAlreadyUsed(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer2())) {
+    if (gameRuleService.isStrikePositionAlreadyUsed(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer2())) {
       return gameMessageService.getStringToMessage("Can't hit same position twice", session);
     }
 
     Boolean shipSunk = handleStrikeAndSeeIfShipIsSunk(command.getStrikeRow(), command.getStrikeColumn(), game.getStrikesPlayer2(),
         game.getActiveShipsPlayer1(), game.getSunkenShipsPlayer1());
 
-    if (shipSunk && gameControlService.isAllShipsSunk(game.getActiveShipsPlayer1())) {
+    if (shipSunk && gameRuleService.isAllShipsSunk(game.getActiveShipsPlayer1())) {
       return handleWin(session, game.getSessionPlayer1(), game);
     }
 
@@ -359,8 +388,8 @@ public class GameServiceImpl implements GameService {
   }
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession gameSession) {
-    GameEvent winnerEvent = gameEventBuilder.createWinEvent(winnerSession, gameSession);
-    GameEvent loserEvent = gameEventBuilder.createLoseEvent(loserSession, gameSession);
+    GameEvent winnerEvent = gameEventBuilder.getWinEvent(winnerSession, gameSession);
+    GameEvent loserEvent = gameEventBuilder.getLoseEvent(loserSession, gameSession);
 
     return removeGameSession(gameSession.getId(), true)
         .then(gameMessageService.getGameEventsToMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
@@ -382,7 +411,7 @@ public class GameServiceImpl implements GameService {
 
   private Boolean handleStrikeAndSeeIfShipIsSunk(int strikeRow, int strikeColumn, List<Strike> ownStrikes,
       List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
-    boolean isHit = gameControlService.isStrikeMatchingShipCoordinate(strikeRow, strikeColumn, opponentActiveShips);
+    boolean isHit = gameRuleService.isStrikeMatchingShipCoordinate(strikeRow, strikeColumn, opponentActiveShips);
     ownStrikes.add(new Strike(new Coordinate(strikeRow, strikeColumn), isHit));
     if (isHit) {
       return handleHitAndSeeIfShipIsSunk(ownStrikes, opponentActiveShips, opponentSunkenShips);
@@ -391,7 +420,7 @@ public class GameServiceImpl implements GameService {
   }
 
   private Boolean handleHitAndSeeIfShipIsSunk(List<Strike> ownStrikes, List<Ship> opponentActiveShips, List<Ship> opponentSunkenShips) {
-    return gameControlService.getShipIfSunken(ownStrikes, opponentActiveShips)
+    return gameRuleService.getShipIfSunken(ownStrikes, opponentActiveShips)
         .map(ship -> {
           opponentActiveShips.remove(ship);
           opponentSunkenShips.add(ship);
@@ -416,5 +445,18 @@ public class GameServiceImpl implements GameService {
       return gameStatisticsService.saveGameStatistics(gameStatistics);
     }
     return Mono.empty();
+  }
+
+  private void setSecondPlayerToGame(GameSession gameSession, WebSocketSession session, List<Ship> ships) {
+    gameSession.setActiveShipsPlayer2(ships);
+    gameSession.setSessionPlayer2(session);
+    gameSession.setPlayer2Connected(true);
+    currentGameIdForWebSocketSession.put(session.getId(), gameSession.getId());
+  }
+
+  private void startGame(GameSession gameSession) {
+    gameSession.setGameState(GameStateType.TURN_PLAYER1);
+    gameSession.setGameStarted(true);
+    gameSession.startTimer();
   }
 }

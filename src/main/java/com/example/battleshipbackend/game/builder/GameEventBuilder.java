@@ -22,19 +22,34 @@ public class GameEventBuilder {
     this.gameDtoConverter = gameDtoConverter;
   }
 
-  public GameEvent createWinEvent(WebSocketSession playerSession, GameSession gameSession) {
+  public GameEvent getWinEvent(WebSocketSession webSocketSession, GameSession gameSession) {
     return GameEvent.builder()
         .eventType(GameEventType.WON)
-        .ownStrikes(gameSessionResolver.getCurrentPlayerStrikes(playerSession, gameSession))
-        .opponentSunkenShips(gameDtoConverter.toListOfShipDTO(gameSessionResolver.getAdversarySunkenShips(playerSession, gameSession)))
+        .ownStrikes(gameSessionResolver.getCurrentSessionStrikes(webSocketSession, gameSession))
+        .opponentSunkenShips(gameDtoConverter.toListOfShipDTO(gameSessionResolver.getAdversarySunkenShips(webSocketSession, gameSession)))
         .build();
   }
 
-  public GameEvent createLoseEvent(WebSocketSession playerSession, GameSession gameSession) {
+  public GameEvent getLoseEvent(WebSocketSession webSocketSession, GameSession gameSession) {
     return GameEvent.builder()
         .eventType(GameEventType.LOST)
-        .opponentStrikes(gameSessionResolver.getAdversaryStrikes(playerSession, gameSession))
-        .ownSunkenShips(gameDtoConverter.toListOfShipDTO(gameSessionResolver.getCurrentPlayerSunkenShips(playerSession, gameSession)))
+        .opponentStrikes(gameSessionResolver.getAdversaryStrikes(webSocketSession, gameSession))
+        .ownSunkenShips(gameDtoConverter.toListOfShipDTO(gameSessionResolver.getCurrentSessionSunkenShips(webSocketSession, gameSession)))
+        .build();
+  }
+
+  public GameEvent getCurrentSessionStartGameEvent(GameSession gameSession) {
+    return GameEvent.builder()
+        .gameId(gameSession.getId())
+        .eventType(GameEventType.TURN_OPPONENT)
+        .timeLeft(gameSession.getTimeLeft())
+        .build();
+  }
+
+  public GameEvent getAdversaryStartGameEvent(GameSession gameSession) {
+    return GameEvent.builder()
+        .eventType(GameEventType.TURN_OWN)
+        .timeLeft(gameSession.getTimeLeft())
         .build();
   }
 }

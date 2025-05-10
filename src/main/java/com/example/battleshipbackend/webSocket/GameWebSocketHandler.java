@@ -1,5 +1,6 @@
 package com.example.battleshipbackend.webSocket;
 
+import com.example.battleshipbackend.game.converter.GameDtoConverter;
 import com.example.battleshipbackend.game.service.GameService;
 import com.example.battleshipbackend.game.dto.request.GameCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,15 +26,17 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   private final ObjectMapper objectMapper;
   private final GameService gameService;
+  private final GameDtoConverter gameDtoConverter;
   private static final int MAX_MESSAGES = 5;
   private static final Duration BUCKET_INTERVAL = Duration.ofSeconds(5);
 
   private final Map<String, AtomicInteger> sessionMessageCounters = new ConcurrentHashMap<>();
 
   @Autowired
-  public GameWebSocketHandler(ObjectMapper objectMapper, GameService gameService) {
+  public GameWebSocketHandler(ObjectMapper objectMapper, GameService gameService, GameDtoConverter gameDtoConverter) {
     this.objectMapper = objectMapper;
     this.gameService = gameService;
+    this.gameDtoConverter = gameDtoConverter;
     Schedulers.single()
         .schedulePeriodically(this::resetAllCounters, BUCKET_INTERVAL.toMillis(), BUCKET_INTERVAL.toMillis(), TimeUnit.MILLISECONDS);
   }
@@ -78,7 +81,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
           }
           return switch (command.getType()) {
             case STRIKE -> gameService.handleStrikeRequest(session, command);
-            case JOIN -> gameService.handleJoinRequest(session, command);
+            case JOIN -> gameService.handleJoinRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+            case JOIN_FRIEND -> gameService.handleJoinFriendRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
             case LEAVE -> gameService.handleLeaveRequest(session, command);
             case RECONNECT -> gameService.handleReconnectRequest(session, command);
           };

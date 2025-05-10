@@ -10,11 +10,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class AIOpponentService {
 
-  private final GameControlService gameControlService;
+  private final GameRuleService gameRuleService;
 
   @Autowired
-  public AIOpponentService(GameControlService gameControlService) {
-    this.gameControlService = gameControlService;
+  public AIOpponentService(GameRuleService gameRuleService) {
+    this.gameRuleService = gameRuleService;
   }
 
   private int largestPossibleShipSize;
@@ -37,7 +37,7 @@ public class AIOpponentService {
     while (true) {
       int row = generateRowOrColumnInt();
       int column = generateRowOrColumnInt();
-      if (!gameControlService.isStrikePositionAlreadyUsed(row, column, moves)) {
+      if (!gameRuleService.isStrikePositionAlreadyUsed(row, column, moves)) {
         return move;
       }
     }

@@ -7,6 +7,7 @@ import lombok.Getter;
 @Getter
 public enum GameEventType {
     WAITING_OPPONENT("WAITING_OPPONENT"),
+    WAITING_FRIEND("WAITING_FRIEND"),
     TURN_OWN("TURN_OWN"),
     TURN_OPPONENT("TURN_OPPONENT"),
     WON("WON"),
@@ -14,7 +15,8 @@ public enum GameEventType {
     OPPONENT_LEFT("OPPONENT_LEFT"),
     TIMEOUT_OWN("TIMEOUT_OWN"),
     TIMEOUT_OPPONENT("TIMEOUT_OPPONENT"),
-    NO_GAME("NO_GAME");
+    NO_GAME("NO_GAME"),
+    WRONG_GAME_ID("WRONG_GAME_ID");
 
     private final String value;
 

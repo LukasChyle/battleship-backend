@@ -38,6 +38,7 @@ public class GameSession {
   private WebSocketSession sessionPlayer2;
   private boolean isGameStarted = false;
   private boolean isAiGame = false;
+  private boolean isAgainstFriend = false;
   private boolean isPlayer1Connected = false;
   private boolean isPlayer2Connected = false;
   private final List<Strike> strikesPlayer1 = new ArrayList<>();
