@@ -29,7 +29,6 @@ import reactor.core.publisher.Mono;
 @Log4j2
 @Service
 public class GameServiceImpl implements GameService {
-
   private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
   private final ObjectMapper objectMapper;
   private final GameRequestValidationService gameRequestValidationService;
