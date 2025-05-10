@@ -10,9 +10,14 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 @Component
 public class GameSessionResolver {
 
-  public List<Strike> getCurrentSessionStrikes
-      (WebSocketSession playerSession, GameSession gameSession) {
-    return playerSession.equals(gameSession.getSessionPlayer1())
+  public WebSocketSession getAdversarySession(WebSocketSession webSocketSession, GameSession gameSession) {
+    return webSocketSession.equals(gameSession.getSessionPlayer1())
+        ? gameSession.getSessionPlayer2()
+        : gameSession.getSessionPlayer1();
+  }
+
+  public List<Strike> getCurrentSessionStrikes(WebSocketSession webSocketSession, GameSession gameSession) {
+    return webSocketSession.equals(gameSession.getSessionPlayer1())
         ? gameSession.getStrikesPlayer1()
         : gameSession.getStrikesPlayer2();
   }
@@ -21,12 +26,6 @@ public class GameSessionResolver {
     return webSocketSession.equals(gameSession.getSessionPlayer1())
         ? gameSession.getStrikesPlayer2()
         : gameSession.getStrikesPlayer1();
-  }
-
-  public List<Ship> getCurrentSessionActiveShips(WebSocketSession webSocketSession, GameSession gameSession) {
-    return webSocketSession.equals(gameSession.getSessionPlayer1())
-        ? gameSession.getActiveShipsPlayer1()
-        : gameSession.getActiveShipsPlayer2();
   }
 
   public List<Ship> getAdversaryActiveShips(WebSocketSession webSocketSession, GameSession gameSession) {
@@ -47,6 +46,11 @@ public class GameSessionResolver {
         : gameSession.getSunkenShipsPlayer1();
   }
 
+  public boolean isAdversaryConnected(WebSocketSession webSocketSession, GameSession gameSession) {
+    return webSocketSession.equals(gameSession.getSessionPlayer1())
+        ? gameSession.isPlayer2Connected()
+        : gameSession.isPlayer1Connected();
+  }
 
 
 }
