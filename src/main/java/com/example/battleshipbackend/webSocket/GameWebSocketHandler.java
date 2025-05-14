@@ -83,6 +83,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
             case STRIKE -> gameService.handleStrikeRequest(session, command);
             case JOIN -> gameService.handleJoinRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
             case JOIN_FRIEND -> gameService.handleJoinFriendRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+            case JOIN_AI -> gameService.handleJoinAiRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
             case LEAVE -> gameService.handleLeaveRequest(session, command);
             case RECONNECT -> gameService.handleReconnectRequest(session, command);
           };

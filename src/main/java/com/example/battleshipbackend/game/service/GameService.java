@@ -12,6 +12,8 @@ public interface GameService {
 
   Mono<Void> handleJoinFriendRequest(WebSocketSession session, GameCommand command, List<Ship> ships);
 
+  Mono<Void> handleJoinAiRequest(WebSocketSession session, GameCommand command, List<Ship> ships);
+
   Mono<Void> handleStrikeRequest(WebSocketSession session, GameCommand command);
 
   Mono<Void> handleReconnectRequest(WebSocketSession session, GameCommand command);

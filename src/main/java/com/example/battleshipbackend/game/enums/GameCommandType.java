@@ -8,6 +8,7 @@ import lombok.Getter;
 public enum GameCommandType {
   JOIN("JOIN"),
   JOIN_FRIEND("JOIN_FRIEND"),
+  JOIN_AI("JOIN_AI"),
   RECONNECT("RECONNECT"),
   LEAVE("LEAVE"),
   STRIKE("STRIKE");
