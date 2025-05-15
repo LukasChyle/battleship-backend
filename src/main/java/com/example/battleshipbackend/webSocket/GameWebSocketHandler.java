@@ -1,7 +1,7 @@
 package com.example.battleshipbackend.webSocket;
 
 import com.example.battleshipbackend.game.converter.GameDtoConverter;
-import com.example.battleshipbackend.game.service.GameService;
+import com.example.battleshipbackend.game.service.GameSessionService;
 import com.example.battleshipbackend.game.dto.request.GameCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,7 +25,7 @@ import reactor.core.scheduler.Schedulers;
 public class GameWebSocketHandler implements WebSocketHandler {
 
   private final ObjectMapper objectMapper;
-  private final GameService gameService;
+  private final GameSessionService gameSessionService;
   private final GameDtoConverter gameDtoConverter;
   private static final int MAX_MESSAGES = 5;
   private static final Duration BUCKET_INTERVAL = Duration.ofSeconds(5);
@@ -33,9 +33,9 @@ public class GameWebSocketHandler implements WebSocketHandler {
   private final Map<String, AtomicInteger> sessionMessageCounters = new ConcurrentHashMap<>();
 
   @Autowired
-  public GameWebSocketHandler(ObjectMapper objectMapper, GameService gameService, GameDtoConverter gameDtoConverter) {
+  public GameWebSocketHandler(ObjectMapper objectMapper, GameSessionService gameSessionService, GameDtoConverter gameDtoConverter) {
     this.objectMapper = objectMapper;
-    this.gameService = gameService;
+    this.gameSessionService = gameSessionService;
     this.gameDtoConverter = gameDtoConverter;
     Schedulers.single()
         .schedulePeriodically(this::resetAllCounters, BUCKET_INTERVAL.toMillis(), BUCKET_INTERVAL.toMillis(), TimeUnit.MILLISECONDS);
@@ -80,18 +80,18 @@ public class GameWebSocketHandler implements WebSocketHandler {
             command.setGameId("");
           }
           return switch (command.getType()) {
-            case STRIKE -> gameService.handleStrikeRequest(session, command);
-            case JOIN -> gameService.handleJoinRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
-            case JOIN_FRIEND -> gameService.handleJoinFriendRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
-            case JOIN_AI -> gameService.handleJoinAiRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
-            case LEAVE -> gameService.handleLeaveRequest(session, command);
-            case RECONNECT -> gameService.handleReconnectRequest(session, command);
+            case STRIKE -> gameSessionService.handleStrikeRequest(session, command);
+            case JOIN -> gameSessionService.handleJoinRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+            case JOIN_FRIEND -> gameSessionService.handleJoinFriendRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+            case JOIN_AI -> gameSessionService.handleJoinAiRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+            case LEAVE -> gameSessionService.handleLeaveRequest(session, command);
+            case RECONNECT -> gameSessionService.handleReconnectRequest(session, command);
           };
         })
         .doFinally(signal -> {
           log.info("Closed WebSocketSession <{}>", session.getId());
           sessionMessageCounters.remove(session.getId());
-          gameService.handleClosedSession(session)
+          gameSessionService.handleClosedSession(session)
               .doOnError(error -> log.error("Error in handleClosedSession: ", error))
               .onErrorComplete()
               .subscribe();

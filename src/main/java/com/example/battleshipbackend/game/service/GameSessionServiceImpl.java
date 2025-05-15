@@ -27,7 +27,7 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
 @Service
-public class GameServiceImpl implements GameService {
+public class GameSessionServiceImpl implements GameSessionService {
 
   private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
   private final ObjectMapper objectMapper;
@@ -40,7 +40,7 @@ public class GameServiceImpl implements GameService {
   private final AIOpponentService aiOpponentService;
 
   @Autowired
-  public GameServiceImpl(
+  public GameSessionServiceImpl(
       ObjectMapper objectMapper,
       GameRequestValidationService gameRequestValidationService,
       GameRuleService gameRuleService,

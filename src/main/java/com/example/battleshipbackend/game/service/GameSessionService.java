@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
-public interface GameService {
+public interface GameSessionService {
   Mono<Void> handleJoinRequest(WebSocketSession session, GameCommand command, List<Ship> ships);
 
   Mono<Void> handleJoinFriendRequest(WebSocketSession session, GameCommand command, List<Ship> ships);

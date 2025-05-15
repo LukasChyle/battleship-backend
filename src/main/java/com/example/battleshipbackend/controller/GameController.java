@@ -1,7 +1,7 @@
 package com.example.battleshipbackend.controller;
 
 import com.example.battleshipbackend.game.dto.ActiveGamesDTO;
-import com.example.battleshipbackend.game.service.GameService;
+import com.example.battleshipbackend.game.service.GameSessionService;
 import com.example.battleshipbackend.statistics.dto.GameStatisticsDTO;
 import com.example.battleshipbackend.statistics.service.GameStatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,12 +16,12 @@ import reactor.core.publisher.Mono;
 public class GameController {
 
   private final GameStatisticsService gameStatisticsService;
-  private final GameService gameService;
+  private final GameSessionService gameSessionService;
 
   @Autowired
-  public GameController(GameStatisticsService gameStatisticsService, GameService gameService) {
+  public GameController(GameStatisticsService gameStatisticsService, GameSessionService gameSessionService) {
     this.gameStatisticsService = gameStatisticsService;
-    this.gameService = gameService;
+    this.gameSessionService = gameSessionService;
   }
 
   @GetMapping("/game-statistics")
@@ -31,7 +31,7 @@ public class GameController {
 
   @GetMapping("/current-games")
   public Mono<ActiveGamesDTO> getCurrentGames() {
-    return gameService.getActiveGamesCount();
+    return gameSessionService.getActiveGamesCount();
   }
 
   @GetMapping("/server-status")
