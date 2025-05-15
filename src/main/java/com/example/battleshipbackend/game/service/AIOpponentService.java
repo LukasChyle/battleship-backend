@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface AIOpponentService {
 
-  Coordinate getNextMove(List<Strike> moves, List<Ship> sunkenShips);
+  Coordinate getNextStrike(List<Strike> moves, List<Ship> sunkenShips, List<Ship> activeShips);
 
   List<Ship> getRandomShips();
 }

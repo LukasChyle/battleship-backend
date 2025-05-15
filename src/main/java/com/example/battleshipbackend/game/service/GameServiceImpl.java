@@ -127,10 +127,7 @@ public class GameServiceImpl implements GameService {
     gameSession.setAgainstAI(true);
     gameSession.setActiveShipsPlayer2(aiOpponentService.getRandomShips());
     return setPlayer1(gameSession, webSocketSession, ships).then(createNewGameSession(gameSession))
-        .then(gameMessageService.getGameEventToMessage(
-            gameEventBuilder.getAdversaryStartGameEvent(gameSession),
-            webSocketSession,
-            false));
+        .then(startGame(webSocketSession, gameSession));
   }
 
   @Override
@@ -354,6 +351,12 @@ public class GameServiceImpl implements GameService {
   private Mono<Void> startGame(WebSocketSession webSocketSession, GameSession gameSession) {
     gameSession.setGameStarted(true);
     gameSession.startTimer();
+    if (gameSession.isAgainstAI()) {
+      return gameMessageService.getGameEventToMessage(
+          gameEventBuilder.getAdversaryStartGameEvent(gameSession),
+          webSocketSession,
+          false);
+    }
     return gameMessageService.getGameEventsToMessages(
         gameEventBuilder.getAdversaryStartGameEvent(gameSession),
         gameSession.getSessionPlayer1(),
