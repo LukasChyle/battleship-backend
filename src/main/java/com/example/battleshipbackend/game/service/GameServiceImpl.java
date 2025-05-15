@@ -14,6 +14,7 @@ import com.example.battleshipbackend.game.resolver.GameSessionResolver;
 import com.example.battleshipbackend.statistics.model.GameStatistics;
 import com.example.battleshipbackend.statistics.service.GameStatisticsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -208,13 +209,23 @@ public class GameServiceImpl implements GameService {
     if (game == null) {
       return Mono.empty();
     }
-    if (game.getSessionPlayer1().equals(session)) {
+    if (session.equals(game.getSessionPlayer1())) {
       if (!game.isPlayer2Connected()) {
+        if (game.isAgainstAI()) {
+          game.setPlayer1Connected(false);
+          return Mono.delay(Duration.ofSeconds(10))
+              .flatMap(checkIfReconnected -> {
+                if (game.isPlayer1Connected()) {
+                  return Mono.empty();
+                }
+                return removeGameSession(gameId, false);
+              });
+        }
         return removeGameSession(gameId, false);
       } else {
         game.setPlayer1Connected(false);
       }
-    } else if (game.getSessionPlayer2().equals(session)) {
+    } else if (session.equals(game.getSessionPlayer2())) {
       if (!game.isPlayer1Connected()) {
         return removeGameSession(gameId, false);
       } else {
@@ -249,6 +260,13 @@ public class GameServiceImpl implements GameService {
         webSocketSession.equals(gameSession.getSessionPlayer1()) ? GameStateType.TURN_PLAYER2 : GameStateType.TURN_PLAYER1);
     gameSession.startTimer();
     GameEvent currentSessionEvent = gameEventBuilder.getCurrentSessionStrikeEvent(webSocketSession, gameSession, isShipSunk);
+    if (gameSession.isAgainstAI()) {
+      return gameMessageService.getGameEventToMessage(
+          currentSessionEvent,
+          webSocketSession,
+          false).then(Mono.delay(Duration.ofSeconds(3))
+          .flatMap(tick -> handleAiStrike(webSocketSession, gameSession)));
+    }
     if (!gameSessionResolver.isAdversaryConnected(webSocketSession, gameSession)) {
       return gameMessageService.getGameEventToMessage(
           currentSessionEvent,
@@ -272,8 +290,20 @@ public class GameServiceImpl implements GameService {
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession gameSession) {
     GameEvent winnerEvent = gameEventBuilder.getWinEvent(winnerSession, gameSession);
     GameEvent loserEvent = gameEventBuilder.getLoseEvent(loserSession, gameSession);
+    if (gameSession.isAgainstAI()) {
+      if (gameSession.isPlayer1Connected()) {
+        return removeGameSession(gameSession.getId(), true)
+            .then(gameMessageService.getGameEventToMessage(
+                loserEvent,
+                loserSession, true));
+      }
+    }
+    if (gameSessionResolver.isAdversaryConnected(winnerSession, gameSession)) {
+      return removeGameSession(gameSession.getId(), true)
+          .then(gameMessageService.getGameEventsToMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
+    }
     return removeGameSession(gameSession.getId(), true)
-        .then(gameMessageService.getGameEventsToMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
+        .then(gameMessageService.getGameEventToMessage(winnerEvent, winnerSession, true));
   }
 
   private Mono<Void> removeGameSession(String gameId, boolean isGameCompleted) {
@@ -363,5 +393,32 @@ public class GameServiceImpl implements GameService {
         gameEventBuilder.getCurrentSessionStartGameEvent(gameSession),
         webSocketSession,
         false);
+  }
+
+  /**
+   * Because we still are on the players webSocketSession, every call to gameSessionResolver is in reverse.
+   */
+  private Mono<Void> handleAiStrike(WebSocketSession webSocketSession, GameSession gameSession) {
+    Coordinate strike = aiOpponentService.getNextStrike(
+        gameSessionResolver.getAdversaryStrikes(webSocketSession, gameSession),
+        gameSessionResolver.getCurrentSessionSunkenShips(webSocketSession, gameSession),
+        gameSessionResolver.getCurrentSessionActiveShips(webSocketSession, gameSession)
+    );
+    Boolean isShipSunk = handleStrikeAndSeeIfShipIsSunk(
+        strike.getRow(),
+        strike.getColumn(),
+        gameSessionResolver.getAdversaryStrikes(webSocketSession, gameSession),
+        gameSessionResolver.getCurrentSessionActiveShips(webSocketSession, gameSession),
+        gameSessionResolver.getCurrentSessionSunkenShips(webSocketSession, gameSession));
+    if (isShipSunk && gameRuleService.isAllShipsSunk(gameSessionResolver.getCurrentSessionActiveShips(webSocketSession, gameSession))) {
+      return handleWin(null, webSocketSession, gameSession);
+    }
+    gameSession.setGameState(GameStateType.TURN_PLAYER1);
+    gameSession.startTimer();
+    if (gameSession.isPlayer1Connected()) {
+      return gameMessageService.getGameEventToMessage(
+          gameEventBuilder.getCurrentSessionStrikeEvent(webSocketSession, gameSession, isShipSunk), webSocketSession, false);
+    }
+    return Mono.empty();
   }
 }

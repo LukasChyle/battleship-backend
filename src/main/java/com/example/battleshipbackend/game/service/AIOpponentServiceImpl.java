@@ -86,12 +86,11 @@ public class AIOpponentServiceImpl implements AIOpponentService {
   }
 
   private Coordinate getRandomValidCoordinate(List<Strike> strikes) {
-    Coordinate coordinate = new Coordinate(0, 0);
     while (true) {
       int row = getRandomIntForRowOrColumn(0);
       int column = getRandomIntForRowOrColumn(0);
       if (!gameRuleService.isStrikePositionAlreadyUsed(row, column, strikes)) {
-        return coordinate;
+        return new Coordinate(row, column);
       }
     }
   }
@@ -116,11 +115,7 @@ public class AIOpponentServiceImpl implements AIOpponentService {
       }
       log.info("Strike from single hit was null"); //TODO: for test
     }
-    Coordinate strikeCoordinate = getStrikeCoordinateWithoutHits(strikes, sizeOfLargestActiveShip);
-    if (strikeCoordinate == null) {
-      log.info("Strike without hit was null"); //TODO: for test
-    }
-    return strikeCoordinate;
+    return getStrikeCoordinateWithoutHits(strikes, sizeOfLargestActiveShip);
   }
 
   private Coordinate[] getCoordinatesOfHitsNotMatchingSunkenShips(List<Ship> sunkenShips, List<Strike> strikes) {

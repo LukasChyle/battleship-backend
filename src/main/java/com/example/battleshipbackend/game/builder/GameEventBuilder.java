@@ -92,6 +92,19 @@ public class GameEventBuilder {
     return event;
   }
 
+  public GameEvent getAiStrikeEvent(GameSession gameSession, boolean isShipSunk) {
+    GameEvent event = GameEvent.builder()
+        .eventType(GameEventType.TURN_OWN)
+        .opponentStrikes(gameSession.getStrikesPlayer2())
+        .timeLeft(gameSession.getTimeLeft())
+        .build();
+    if (isShipSunk) {
+      event.setOwnSunkenShips(gameDtoConverter.toListOfShipDTO(gameSession.getSunkenShipsPlayer1()));
+      event.setOwnActiveShips(gameDtoConverter.toListOfShipDTO(gameSession.getActiveShipsPlayer1()));
+    }
+    return event;
+  }
+
   public GameEvent getReconnectAsPlayer1Event(GameSession gameSession) {
     GameEvent event = GameEvent.builder()
         .ownStrikes(gameSession.getStrikesPlayer1())

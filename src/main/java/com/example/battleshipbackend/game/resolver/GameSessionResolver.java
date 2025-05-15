@@ -27,6 +27,12 @@ public class GameSessionResolver {
         : gameSession.getStrikesPlayer1();
   }
 
+  public List<Ship> getCurrentSessionActiveShips(WebSocketSession webSocketSession, GameSession gameSession) {
+    return webSocketSession.equals(gameSession.getSessionPlayer1())
+        ? gameSession.getActiveShipsPlayer1()
+        : gameSession.getActiveShipsPlayer2();
+  }
+
   public List<Ship> getAdversaryActiveShips(WebSocketSession webSocketSession, GameSession gameSession) {
     return webSocketSession.equals(gameSession.getSessionPlayer1())
         ? gameSession.getActiveShipsPlayer2()
