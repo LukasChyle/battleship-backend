@@ -102,7 +102,7 @@ public class GameServiceImpl implements GameService {
       gameSession.setAgainstFriend(true);
       return setPlayer1(gameSession, webSocketSession, ships).then(createNewGameSession(gameSession))
           .then(gameMessageService.getGameEventToMessage(
-              gameEventBuilder.getWaitingOpponentEvent(gameSession.getId()),
+              gameEventBuilder.getWaitingFriendEvent(gameSession.getId()),
               webSocketSession,
               false));
     } else {
@@ -128,7 +128,7 @@ public class GameServiceImpl implements GameService {
     gameSession.setActiveShipsPlayer2(aiOpponentService.getRandomShips());
     return setPlayer1(gameSession, webSocketSession, ships).then(createNewGameSession(gameSession))
         .then(gameMessageService.getGameEventToMessage(
-            gameEventBuilder.getWaitingOpponentEvent(gameSession.getId()),
+            gameEventBuilder.getAdversaryStartGameEvent(gameSession),
             webSocketSession,
             false));
   }
