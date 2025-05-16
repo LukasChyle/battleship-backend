@@ -4,13 +4,13 @@ import com.example.battleshipbackend.game.model.Coordinate;
 import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-@Log4j2
 @Service
 public class AIOpponentServiceImpl implements AIOpponentService {
 
@@ -28,7 +28,7 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     if (strikes.isEmpty()) {
       return getRandomValidCoordinate(strikes);
     }
-    return calculateNextMove(strikes, sunkenShips, getSizeOfLargestActiveShip(activeShips));
+    return calculateNextStrike(strikes, sunkenShips, getSizeOfLargestActiveShip(activeShips));
   }
 
   @Override
@@ -44,9 +44,7 @@ public class AIOpponentServiceImpl implements AIOpponentService {
           }
         }
       }
-      log.info("try with random ships: {}", ships); //TODO: for test
     } while (!gameRuleService.isShipsValid(ships));
-    log.info("Success with random ships: {}", ships); //TODO: for test
     return ships;
   }
 
@@ -86,9 +84,28 @@ public class AIOpponentServiceImpl implements AIOpponentService {
   }
 
   private Coordinate getRandomValidCoordinate(List<Strike> strikes) {
+    int row;
+    int column;
+    int space = 3;
+    for (int attempt = 0; attempt < 10; attempt++) {
+      row = getRandomIntForRowOrColumn(0);
+      column = getRandomIntForRowOrColumn(0);
+      if (attempt == 5) {
+        space = 1;
+      }
+      if (!gameRuleService.isStrikePositionAlreadyUsed(row, column, strikes)) {
+        int horizontalForward = countFreeSpaces(strikes, row, column + 1, space, true, true);
+        int horizontalBackward = countFreeSpaces(strikes, row, column - 1, space, true, false);
+        int verticalForward = countFreeSpaces(strikes, column, row + 1, space, false, true);
+        int verticalBackward = countFreeSpaces(strikes, column, row - 1, space, false, false);
+        if (horizontalForward >= space && horizontalBackward >= space && verticalForward >= space && verticalBackward >= space) {
+          return new Coordinate(row, column);
+        }
+      }
+    }
     while (true) {
-      int row = getRandomIntForRowOrColumn(0);
-      int column = getRandomIntForRowOrColumn(0);
+      row = getRandomIntForRowOrColumn(0);
+      column = getRandomIntForRowOrColumn(0);
       if (!gameRuleService.isStrikePositionAlreadyUsed(row, column, strikes)) {
         return new Coordinate(row, column);
       }
@@ -99,23 +116,21 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return activeShips.stream().mapToInt(ship -> ship.getCoordinates().size()).max().orElse(0);
   }
 
-  private Coordinate calculateNextMove(List<Strike> strikes, List<Ship> sunkenShips, int sizeOfLargestActiveShip) {
+  private Coordinate calculateNextStrike(List<Strike> strikes, List<Ship> sunkenShips, int sizeOfLargestActiveShip) {
     Coordinate[] hits = getCoordinatesOfHitsNotMatchingSunkenShips(sunkenShips, strikes);
     if (hits.length > 1) {
       Coordinate strikeCoordinateFromConnectedHits = getStrikeCoordinateFromConnectedHits(strikes, hits);
       if (strikeCoordinateFromConnectedHits != null) {
         return strikeCoordinateFromConnectedHits;
       }
-      log.info("Strike from connected hits was null"); //TODO: for test
     }
     if (hits.length > 0) {
       Coordinate strikeCoordinateFromSingleHit = getStrikeCoordinateFromSingleHit(strikes, hits);
       if (strikeCoordinateFromSingleHit != null) {
         return strikeCoordinateFromSingleHit;
       }
-      log.info("Strike from single hit was null"); //TODO: for test
     }
-    return getStrikeCoordinateWithoutHits(strikes, sizeOfLargestActiveShip);
+    return getNewStrikeCoordinate(strikes, sizeOfLargestActiveShip);
   }
 
   private Coordinate[] getCoordinatesOfHitsNotMatchingSunkenShips(List<Ship> sunkenShips, List<Strike> strikes) {
@@ -172,7 +187,14 @@ public class AIOpponentServiceImpl implements AIOpponentService {
 
   private Coordinate getStrikeCoordinateFromSingleHit(List<Strike> strikes, Coordinate[] hits) {
     for (Coordinate hit : hits) {
-      int[][] directions = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}}; // right, left, down, up
+      //TODO: Instead of random direction, use direction with most space.
+      List<int[]> directions = new ArrayList<>(Arrays.asList(
+          new int[]{0, 1},
+          new int[]{0, -1},
+          new int[]{1, 0},
+          new int[]{-1, 0}
+      ));
+      Collections.shuffle(directions);
       for (int[] direction : directions) {
         int newRow = hit.getRow() + direction[0];
         int newCol = hit.getColumn() + direction[1];
@@ -184,13 +206,13 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return null; //should never reach this point.
   }
 
-  private Coordinate getStrikeCoordinateWithoutHits(List<Strike> strikes, int sizeOfLargestActiveShip) {
+  private Coordinate getNewStrikeCoordinate(List<Strike> strikes, int sizeOfLargestActiveShip) {
+    // TODO: Try to use a heatmap instead.
     while (true) {
       Coordinate coordinate = getRandomValidCoordinate(strikes);
       if (hasEnoughSpace(coordinate, strikes, sizeOfLargestActiveShip)) {
         return coordinate;
       }
-      log.info("Strike without hits, not accepted coordinate, {}", coordinate); //TODO: for test
     }
   }
 
@@ -204,7 +226,7 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     int movingAxis = isHorizontal ? coordinate.getColumn() : coordinate.getRow();
 
     int forwardSpace = countFreeSpaces(strikes, staticAxis, movingAxis, requiredSpace, isHorizontal, true);
-    int backwardSpace = countFreeSpaces(strikes, staticAxis, movingAxis, requiredSpace, isHorizontal, false);
+    int backwardSpace = countFreeSpaces(strikes, staticAxis, movingAxis - 1, requiredSpace, isHorizontal, false);
     return (forwardSpace + backwardSpace) >= requiredSpace;
   }
 

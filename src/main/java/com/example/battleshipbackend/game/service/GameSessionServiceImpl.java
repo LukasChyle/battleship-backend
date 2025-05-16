@@ -62,8 +62,6 @@ public class GameSessionServiceImpl implements GameSessionService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: Verify that gameSessions vs AI will get shut down correctly in different scenarios
-  //TODO: when player vs AI disconnects, should there be a timer that prevents the gameSession to be directly removed?
   //TODO: Create unit and integration tests.
   //TODO: Try to remove id-variable in Ship and ShipDTO.
 
@@ -254,6 +252,9 @@ public class GameSessionServiceImpl implements GameSessionService {
         gameSessionResolver.getAdversaryActiveShips(webSocketSession, gameSession),
         gameSessionResolver.getAdversarySunkenShips(webSocketSession, gameSession));
     if (isShipSunk && gameRuleService.isAllShipsSunk(gameSessionResolver.getAdversaryActiveShips(webSocketSession, gameSession))) {
+      if (gameSession.isAgainstAI()) {
+        return handleWin(webSocketSession, null, gameSession);
+      }
       return handleWin(webSocketSession, gameSessionResolver.getAdversarySession(webSocketSession, gameSession), gameSession);
     }
     gameSession.setGameState(
@@ -288,16 +289,18 @@ public class GameSessionServiceImpl implements GameSessionService {
   }
 
   private Mono<Void> handleWin(WebSocketSession winnerSession, WebSocketSession loserSession, GameSession gameSession) {
-    GameEvent winnerEvent = gameEventBuilder.getWinEvent(winnerSession, gameSession);
-    GameEvent loserEvent = gameEventBuilder.getLoseEvent(loserSession, gameSession);
     if (gameSession.isAgainstAI()) {
       if (gameSession.isPlayer1Connected()) {
         return removeGameSession(gameSession.getId(), true)
             .then(gameMessageService.getGameEventToMessage(
-                loserEvent,
-                loserSession, true));
+                winnerSession == null ? gameEventBuilder.getLoseEvent(loserSession, gameSession)
+                    : gameEventBuilder.getWinEvent(winnerSession, gameSession),
+                winnerSession == null ? loserSession : winnerSession,
+                true));
       }
     }
+    GameEvent winnerEvent = gameEventBuilder.getWinEvent(winnerSession, gameSession);
+    GameEvent loserEvent = gameEventBuilder.getLoseEvent(loserSession, gameSession);
     if (gameSessionResolver.isAdversaryConnected(winnerSession, gameSession)) {
       return removeGameSession(gameSession.getId(), true)
           .then(gameMessageService.getGameEventsToMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
@@ -395,29 +398,26 @@ public class GameSessionServiceImpl implements GameSessionService {
         false);
   }
 
-  /**
-   * Because we still are on the players webSocketSession, every call to gameSessionResolver is in reverse.
-   */
   private Mono<Void> handleAiStrike(WebSocketSession webSocketSession, GameSession gameSession) {
     Coordinate strike = aiOpponentService.getNextStrike(
-        gameSessionResolver.getAdversaryStrikes(webSocketSession, gameSession),
-        gameSessionResolver.getCurrentSessionSunkenShips(webSocketSession, gameSession),
-        gameSessionResolver.getCurrentSessionActiveShips(webSocketSession, gameSession)
+        gameSession.getStrikesPlayer2(),
+        gameSession.getSunkenShipsPlayer1(),
+        gameSession.getActiveShipsPlayer1()
     );
     Boolean isShipSunk = handleStrikeAndSeeIfShipIsSunk(
         strike.getRow(),
         strike.getColumn(),
-        gameSessionResolver.getAdversaryStrikes(webSocketSession, gameSession),
-        gameSessionResolver.getCurrentSessionActiveShips(webSocketSession, gameSession),
-        gameSessionResolver.getCurrentSessionSunkenShips(webSocketSession, gameSession));
-    if (isShipSunk && gameRuleService.isAllShipsSunk(gameSessionResolver.getCurrentSessionActiveShips(webSocketSession, gameSession))) {
+        gameSession.getStrikesPlayer2(),
+        gameSession.getActiveShipsPlayer1(),
+        gameSession.getSunkenShipsPlayer1());
+    if (isShipSunk && gameRuleService.isAllShipsSunk(gameSession.getActiveShipsPlayer1())) {
       return handleWin(null, webSocketSession, gameSession);
     }
     gameSession.setGameState(GameStateType.TURN_PLAYER1);
     gameSession.startTimer();
     if (gameSession.isPlayer1Connected()) {
       return gameMessageService.getGameEventToMessage(
-          gameEventBuilder.getCurrentSessionStrikeEvent(webSocketSession, gameSession, isShipSunk), webSocketSession, false);
+          gameEventBuilder.getAiStrikeEvent(gameSession, isShipSunk), webSocketSession, false);
     }
     return Mono.empty();
   }

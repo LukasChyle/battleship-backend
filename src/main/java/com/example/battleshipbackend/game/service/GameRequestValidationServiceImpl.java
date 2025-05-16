@@ -99,8 +99,10 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
       log.warn("StrikeRequest: wrong session <{}> for game: <{}>", webSocketSession.getId(), gameSession.toString());
       return gameMessageService.getStringToMessage("Wrong session for this game", webSocketSession);
     }
-    if ((gameSession.getGameState() == GameStateType.TURN_PLAYER1 && gameSession.getSessionPlayer2().equals(webSocketSession)) ||
-        (gameSession.getGameState() == GameStateType.TURN_PLAYER2 && gameSession.getSessionPlayer1().equals(webSocketSession))) {
+    if ((gameSession.isAgainstAI() && gameSession.getGameState() != GameStateType.TURN_PLAYER1) ||
+        (!gameSession.isAgainstAI() && (
+            (gameSession.getGameState() == GameStateType.TURN_PLAYER1 && gameSession.getSessionPlayer2().equals(webSocketSession)) ||
+                (gameSession.getGameState() == GameStateType.TURN_PLAYER2 && gameSession.getSessionPlayer1().equals(webSocketSession))))) {
       log.warn("Tried to strike on opponents turn, session <{}>, game id: <{}>", webSocketSession.getId(), gameSession.getId());
       return gameMessageService.getStringToMessage("Not your turn to play", webSocketSession);
     }

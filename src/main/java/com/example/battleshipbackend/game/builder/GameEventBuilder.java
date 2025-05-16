@@ -61,6 +61,7 @@ public class GameEventBuilder {
 
   public GameEvent getAdversaryStartGameEvent(GameSession gameSession) {
     return GameEvent.builder()
+        .gameId(gameSession.getId())
         .eventType(GameEventType.TURN_OWN)
         .timeLeft(gameSession.getTimeLeft())
         .build();
