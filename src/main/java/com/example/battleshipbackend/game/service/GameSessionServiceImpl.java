@@ -59,6 +59,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     this.aiOpponentService = aiOpponentService;
   }
 
+  private final static int AI_RESPONSE_TIME_IN_SECONDS = 1;
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
@@ -265,7 +266,7 @@ public class GameSessionServiceImpl implements GameSessionService {
       return gameMessageService.getGameEventToMessage(
           currentSessionEvent,
           webSocketSession,
-          false).then(Mono.delay(Duration.ofSeconds(3))
+          false).then(Mono.delay(Duration.ofSeconds(AI_RESPONSE_TIME_IN_SECONDS))
           .flatMap(tick -> handleAiStrike(webSocketSession, gameSession)));
     }
     if (!gameSessionResolver.isAdversaryConnected(webSocketSession, gameSession)) {

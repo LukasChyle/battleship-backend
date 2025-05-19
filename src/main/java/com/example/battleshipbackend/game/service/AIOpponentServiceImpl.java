@@ -5,12 +5,13 @@ import com.example.battleshipbackend.game.model.Ship;
 import com.example.battleshipbackend.game.model.Strike;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+@Log4j2
 @Service
 public class AIOpponentServiceImpl implements AIOpponentService {
 
@@ -25,10 +26,33 @@ public class AIOpponentServiceImpl implements AIOpponentService {
 
   @Override
   public Coordinate getNextStrike(List<Strike> strikes, List<Ship> sunkenShips, List<Ship> activeShips) {
-    if (strikes.isEmpty()) {
-      return getRandomValidCoordinate(strikes);
+    boolean[][] strikeGrid = getStrikeGrid(strikes);
+    if (!strikes.isEmpty()) {
+      Coordinate[] hits = getHitsOfNotSunkenShips(sunkenShips, strikes);
+      if (hits.length > 1) {
+        Coordinate strikeCoordinateFromConnectedHits = getNewStrikeFromConnectedHits(strikeGrid, hits);
+        if (strikeCoordinateFromConnectedHits != null) {
+          return strikeCoordinateFromConnectedHits;
+        }
+      }
+      if (hits.length > 0) {
+        Coordinate strikeCoordinateFromSingleHit = getNewStrikeFromSingleHit(strikeGrid, hits);
+        if (strikeCoordinateFromSingleHit != null) {
+          return strikeCoordinateFromSingleHit;
+        }
+        log.warn("No valid coordinates found from single hit: strikes {}, hits {}", strikes, hits);
+      }
+      int[][] heatmap = getHeatmap(strikeGrid, sunkenShips);
+      Coordinate bestStrikeFromHeatmap = getBestStrikeFromHeatmap(heatmap, strikeGrid);
+      if (bestStrikeFromHeatmap != null) {
+        return bestStrikeFromHeatmap;
+      }
     }
-    return calculateNextStrike(strikes, sunkenShips, getSizeOfLargestActiveShip(activeShips));
+    Coordinate randomStrike = getRandomStrike(strikeGrid);
+    if (randomStrike == null) {
+      log.warn("No valid randomStrike: strikes {}", strikes);
+    }
+    return randomStrike;
   }
 
   @Override
@@ -37,7 +61,7 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     do {
       for (int i = 0; i < SHIP_SIZES.length; i++) {
         while (true) {
-          final List<Coordinate> coordinates = getCoordinatesForRandomShipPosition(i);
+          final List<Coordinate> coordinates = getRandomShipPosition(i);
           if (!isCoordinatesOverlappingShips(coordinates, ships)) {
             ships.add(new Ship(String.valueOf(i), coordinates));
             break;
@@ -48,7 +72,17 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return ships;
   }
 
-  private List<Coordinate> getCoordinatesForRandomShipPosition(int index) {
+  private boolean isCoordinatesOverlappingShips(List<Coordinate> coordinates, List<Ship> ships) {
+    return ships.stream().anyMatch(ship ->
+      ship.getCoordinates().stream().anyMatch(shipCoordinate ->
+        coordinates.stream().anyMatch(newCoordinate ->
+          newCoordinate.getRow() == shipCoordinate.getRow() && newCoordinate.getColumn() == shipCoordinate.getColumn()
+        )
+      )
+    );
+  }
+
+  private List<Coordinate> getRandomShipPosition(int index) {
     final int shipSize = SHIP_SIZES[index];
     final boolean isHorizontal = getRandomBoolean();
     final int startRow = getRandomIntForRowOrColumn(isHorizontal ? shipSize : 0);
@@ -62,14 +96,15 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return coordinates;
   }
 
-  private boolean isCoordinatesOverlappingShips(List<Coordinate> coordinates, List<Ship> ships) {
-    return ships.stream().anyMatch(ship ->
-        ship.getCoordinates().stream().anyMatch(shipCoordinate ->
-            coordinates.stream().anyMatch(newCoordinate ->
-                newCoordinate.getRow() == shipCoordinate.getRow() && newCoordinate.getColumn() == shipCoordinate.getColumn()
-            )
-        )
-    );
+  private Coordinate getRandomStrike(boolean[][] strikeGrid) {
+    for (int i = 0; i < 200; i++) {
+      int row = getRandomIntForRowOrColumn(0);
+      int column = getRandomIntForRowOrColumn(0);
+      if (!strikeGrid[row][column]) {
+        return new Coordinate(row, column);
+      }
+    }
+    return null;
   }
 
   /**
@@ -83,100 +118,44 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return ThreadLocalRandom.current().nextBoolean();
   }
 
-  private Coordinate getRandomValidCoordinate(List<Strike> strikes) {
-    int row;
-    int column;
-    int space = 3;
-    for (int attempt = 0; attempt < 10; attempt++) {
-      row = getRandomIntForRowOrColumn(0);
-      column = getRandomIntForRowOrColumn(0);
-      if (attempt == 5) {
-        space = 1;
-      }
-      if (!gameRuleService.isStrikePositionAlreadyUsed(row, column, strikes)) {
-        int horizontalForward = countFreeSpaces(strikes, row, column + 1, space, true, true);
-        int horizontalBackward = countFreeSpaces(strikes, row, column - 1, space, true, false);
-        int verticalForward = countFreeSpaces(strikes, column, row + 1, space, false, true);
-        int verticalBackward = countFreeSpaces(strikes, column, row - 1, space, false, false);
-        if (horizontalForward >= space && horizontalBackward >= space && verticalForward >= space && verticalBackward >= space) {
-          return new Coordinate(row, column);
-        }
-      }
-    }
-    while (true) {
-      row = getRandomIntForRowOrColumn(0);
-      column = getRandomIntForRowOrColumn(0);
-      if (!gameRuleService.isStrikePositionAlreadyUsed(row, column, strikes)) {
-        return new Coordinate(row, column);
-      }
-    }
-  }
-
-  private int getSizeOfLargestActiveShip(List<Ship> activeShips) {
-    return activeShips.stream().mapToInt(ship -> ship.getCoordinates().size()).max().orElse(0);
-  }
-
-  private Coordinate calculateNextStrike(List<Strike> strikes, List<Ship> sunkenShips, int sizeOfLargestActiveShip) {
-    Coordinate[] hits = getCoordinatesOfHitsNotMatchingSunkenShips(sunkenShips, strikes);
-    if (hits.length > 1) {
-      Coordinate strikeCoordinateFromConnectedHits = getStrikeCoordinateFromConnectedHits(strikes, hits);
-      if (strikeCoordinateFromConnectedHits != null) {
-        return strikeCoordinateFromConnectedHits;
-      }
-    }
-    if (hits.length > 0) {
-      Coordinate strikeCoordinateFromSingleHit = getStrikeCoordinateFromSingleHit(strikes, hits);
-      if (strikeCoordinateFromSingleHit != null) {
-        return strikeCoordinateFromSingleHit;
-      }
-    }
-    return getNewStrikeCoordinate(strikes, sizeOfLargestActiveShip);
-  }
-
-  private Coordinate[] getCoordinatesOfHitsNotMatchingSunkenShips(List<Ship> sunkenShips, List<Strike> strikes) {
+  private Coordinate[] getHitsOfNotSunkenShips(List<Ship> sunkenShips, List<Strike> strikes) {
     return strikes.stream()
-        .filter(Strike::isHit)
-        .map(Strike::getCoordinate)
-        .filter(hitCoordinate -> sunkenShips.stream()
-            .noneMatch(ship -> ship.getCoordinates().stream()
-                .anyMatch(shipCoordinate ->
-                    shipCoordinate.getRow() == hitCoordinate.getRow() &&
-                        shipCoordinate.getColumn() == hitCoordinate.getColumn()
-                )
-            )
-        ).toArray(Coordinate[]::new);
+      .filter(Strike::isHit)
+      .map(Strike::getCoordinate)
+      .filter(hitCoordinate -> sunkenShips.stream()
+        .noneMatch(ship -> ship.getCoordinates().stream()
+          .anyMatch(shipCoordinate ->
+            shipCoordinate.getRow() == hitCoordinate.getRow() &&
+              shipCoordinate.getColumn() == hitCoordinate.getColumn()
+          )
+        )
+      ).toArray(Coordinate[]::new);
   }
 
-  private Coordinate getStrikeCoordinateFromConnectedHits(List<Strike> strikes, Coordinate[] hits) {
+  private Coordinate getNewStrikeFromConnectedHits(boolean[][] strikeGrid, Coordinate[] hits) {
     for (int i = 0; i < hits.length; i++) {
       for (int j = i + 1; j < hits.length; j++) {
         Coordinate hit1 = hits[i];
         Coordinate hit2 = hits[j];
-        // Check if hits are connected horizontally
         if (hit1.getRow() == hit2.getRow() && Math.abs(hit1.getColumn() - hit2.getColumn()) == 1) {
           int row = hit1.getRow();
           int minCol = Math.min(hit1.getColumn(), hit2.getColumn());
           int maxCol = Math.max(hit1.getColumn(), hit2.getColumn());
-          // Try right
-          if (isCoordinateWithinGameBoard(row, maxCol + 1) && !gameRuleService.isStrikePositionAlreadyUsed(row, maxCol + 1, strikes)) {
+          if (isValidCoordinate(row, maxCol + 1) && !strikeGrid[row][maxCol + 1]) {
             return new Coordinate(row, maxCol + 1);
           }
-          // Try left
-          if (isCoordinateWithinGameBoard(row, minCol - 1) && !gameRuleService.isStrikePositionAlreadyUsed(row, minCol - 1, strikes)) {
+          if (isValidCoordinate(row, minCol - 1) && !strikeGrid[row][minCol - 1]) {
             return new Coordinate(row, minCol - 1);
           }
         }
-        // Check if hits are connected vertically
         if (hit1.getColumn() == hit2.getColumn() && Math.abs(hit1.getRow() - hit2.getRow()) == 1) {
           int col = hit1.getColumn();
           int minRow = Math.min(hit1.getRow(), hit2.getRow());
           int maxRow = Math.max(hit1.getRow(), hit2.getRow());
-          // Try down
-          if (isCoordinateWithinGameBoard(maxRow + 1, col) && !gameRuleService.isStrikePositionAlreadyUsed(maxRow + 1, col, strikes)) {
+          if (isValidCoordinate(maxRow + 1, col) && !strikeGrid[maxRow + 1][col]) {
             return new Coordinate(maxRow + 1, col);
           }
-          // Try up
-          if (isCoordinateWithinGameBoard(minRow - 1, col) && !gameRuleService.isStrikePositionAlreadyUsed(minRow - 1, col, strikes)) {
+          if (isValidCoordinate(minRow - 1, col) && !strikeGrid[minRow - 1][col]) {
             return new Coordinate(minRow - 1, col);
           }
         }
@@ -185,68 +164,156 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return null;
   }
 
-  private Coordinate getStrikeCoordinateFromSingleHit(List<Strike> strikes, Coordinate[] hits) {
+  private Coordinate getNewStrikeFromSingleHit(boolean[][] strikeGrid, Coordinate[] hits) {
     for (Coordinate hit : hits) {
-      //TODO: Instead of random direction, use direction with most space.
-      List<int[]> directions = new ArrayList<>(Arrays.asList(
-          new int[]{0, 1},
-          new int[]{0, -1},
-          new int[]{1, 0},
-          new int[]{-1, 0}
-      ));
-      Collections.shuffle(directions);
-      for (int[] direction : directions) {
-        int newRow = hit.getRow() + direction[0];
-        int newCol = hit.getColumn() + direction[1];
-        if (isCoordinateWithinGameBoard(newRow, newCol) && !gameRuleService.isStrikePositionAlreadyUsed(newRow, newCol, strikes)) {
-          return new Coordinate(newRow, newCol);
+      int row = hit.getRow();
+      int column = hit.getColumn();
+      int[][] directions = {
+        {0, 1},
+        {0, -1},
+        {1, 0},
+        {-1, 0}
+      };
+      record DirectionSpace(int[] direction, int spaces) {
+
+      }
+      DirectionSpace[] directionSpaces = new DirectionSpace[directions.length];
+      for (int i = 0; i < directions.length; i++) {
+        int dRow = directions[i][0];
+        int dCol = directions[i][1];
+        int spaces = countFreeSpacesInDirection(strikeGrid, row, column, dRow, dCol);
+        directionSpaces[i] = new DirectionSpace(directions[i], spaces);
+      }
+      Arrays.sort(directionSpaces, (a, b) -> Integer.compare(b.spaces(), a.spaces()));
+
+      int maxSpaces = directionSpaces[0].spaces();
+      List<DirectionSpace> bestDirections = new ArrayList<>();
+      for (DirectionSpace directionSpace : directionSpaces) {
+        if (directionSpace.spaces() == maxSpaces) {
+          bestDirections.add(directionSpace);
+        } else {
+          break;
         }
       }
-    }
-    return null; //should never reach this point.
-  }
-
-  private Coordinate getNewStrikeCoordinate(List<Strike> strikes, int sizeOfLargestActiveShip) {
-    // TODO: Try to use a heatmap instead.
-    while (true) {
-      Coordinate coordinate = getRandomValidCoordinate(strikes);
-      if (hasEnoughSpace(coordinate, strikes, sizeOfLargestActiveShip)) {
-        return coordinate;
+      DirectionSpace chosenDirection = bestDirections.get(ThreadLocalRandom.current().nextInt(bestDirections.size()));
+      int newRow = row + chosenDirection.direction()[0];
+      int newCol = column + chosenDirection.direction()[1];
+      if (isValidCoordinate(newRow, newCol) && !strikeGrid[newRow][newCol]) {
+        return new Coordinate(newRow, newCol);
       }
     }
+    return null;
   }
 
-  private boolean hasEnoughSpace(Coordinate coordinate, List<Strike> strikes, int requiredSpace) {
-    return hasFreeSpaceInDirection(coordinate, strikes, requiredSpace, true) ||
-        hasFreeSpaceInDirection(coordinate, strikes, requiredSpace, false);
-  }
-
-  private boolean hasFreeSpaceInDirection(Coordinate coordinate, List<Strike> strikes, int requiredSpace, boolean isHorizontal) {
-    int staticAxis = isHorizontal ? coordinate.getRow() : coordinate.getColumn();
-    int movingAxis = isHorizontal ? coordinate.getColumn() : coordinate.getRow();
-
-    int forwardSpace = countFreeSpaces(strikes, staticAxis, movingAxis, requiredSpace, isHorizontal, true);
-    int backwardSpace = countFreeSpaces(strikes, staticAxis, movingAxis - 1, requiredSpace, isHorizontal, false);
-    return (forwardSpace + backwardSpace) >= requiredSpace;
-  }
-
-  private int countFreeSpaces(List<Strike> strikes, int staticAxis, int movingAxis,
-      int requiredSpace, boolean isHorizontal, boolean isForward) {
+  private int countFreeSpacesInDirection(boolean[][] strikeGrid, int startRow, int startCol, int dRow, int dCol) {
     int count = 0;
-    int i = movingAxis;
-    while (i >= 0 && i < 10 && count < requiredSpace) {
-      if (isHorizontal
-          ? gameRuleService.isStrikePositionAlreadyUsed(staticAxis, i, strikes)
-          : gameRuleService.isStrikePositionAlreadyUsed(i, staticAxis, strikes)) {
-        break;
-      }
+    int row = startRow + dRow;
+    int col = startCol + dCol;
+    while (isValidCoordinate(row, col) && !strikeGrid[row][col]) {
       count++;
-      i = isForward ? i + 1 : i - 1;
+      row += dRow;
+      col += dCol;
     }
     return count;
   }
 
-  private boolean isCoordinateWithinGameBoard(int row, int column) {
+  private boolean isValidCoordinate(int row, int column) {
     return row >= 0 && row < 10 && column >= 0 && column < 10;
   }
+
+  private boolean[][] getStrikeGrid(List<Strike> strikes) {
+    boolean[][] strikeGrid = new boolean[10][10];
+    for (Strike strike : strikes) {
+      Coordinate c = strike.getCoordinate();
+      strikeGrid[c.getRow()][c.getColumn()] = true;
+    }
+    return strikeGrid;
+  }
+
+  private int[][] getHeatmap(boolean[][] strikeGrid, List<Ship> activeShips) {
+    int[][] heatmap = new int[10][10];
+    int shipSize = getLargestRemainingShipSize(activeShips);
+    int baseIncrement = 1;
+    for (int row = 0; row < 10; row++) {
+      for (int col = 0; col <= 10 - shipSize; col++) {
+        boolean canPlace = true;
+        for (int k = 0; k < shipSize; k++) {
+          if (strikeGrid[row][col + k]) {
+            canPlace = false;
+            break;
+          }
+        }
+        if (canPlace) {
+          for (int k = 0; k < shipSize; k++) {
+            heatmap[row][col + k] += baseIncrement;
+          }
+        }
+      }
+    }
+    for (int row = 0; row <= 10 - shipSize; row++) {
+      for (int col = 0; col < 10; col++) {
+        boolean canPlace = true;
+        for (int k = 0; k < shipSize; k++) {
+          if (strikeGrid[row + k][col]) {
+            canPlace = false;
+            break;
+          }
+        }
+        if (canPlace) {
+          for (int k = 0; k < shipSize; k++) {
+            heatmap[row + k][col] += baseIncrement;
+          }
+        }
+      }
+    }
+    return heatmap;
+  }
+
+  private int getLargestRemainingShipSize(List<Ship> activeShips) {
+    return activeShips.stream().mapToInt(ship -> ship.getCoordinates().size()).max().orElse(0);
+  }
+
+  private Coordinate getBestStrikeFromHeatmap(int[][] heatmap, boolean[][] strikeGrid) {
+    int bestScore = -1;
+    List<Coordinate> bestCoordinates = new ArrayList<>();
+    for (int row = 0; row < 10; row++) {
+      for (int col = 0; col < 10; col++) {
+        if (!strikeGrid[row][col]) {
+          int score = heatmap[row][col];
+          if (score > bestScore) {
+            bestScore = score;
+            bestCoordinates.clear();
+            bestCoordinates.add(new Coordinate(row, col));
+          } else if (score == bestScore) {
+            bestCoordinates.add(new Coordinate(row, col));
+          }
+        }
+      }
+    }
+    if (bestCoordinates.isEmpty()) {
+      log.warn("No valid coordinates found in heatmap: heatmap {}, alreadyStruck {}",
+        Arrays.deepToString(heatmap),
+        Arrays.deepToString(strikeGrid));
+      return null;
+    }
+    Coordinate coordinate = bestCoordinates.get(ThreadLocalRandom.current().nextInt(bestCoordinates.size()));
+          logHeatmap(heatmap, bestScore, coordinate); // TODO: DEBUG
+    return coordinate;
+  }
+
+  public void logHeatmap(int[][] heatmap, int bestScore, Coordinate coordinate) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("\nHeatmap:\n");
+
+    for (int[] ints : heatmap) {
+      for (int anInt : ints) {
+        sb.append(String.format("%3d", anInt));
+      }
+      sb.append("\n");
+    }
+    log.warn(sb.toString());
+    log.warn("{} score, picked {}", bestScore, coordinate);
+  }
 }
+
+
