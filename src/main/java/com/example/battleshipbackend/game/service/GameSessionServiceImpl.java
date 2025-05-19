@@ -59,12 +59,12 @@ public class GameSessionServiceImpl implements GameSessionService {
     this.aiOpponentService = aiOpponentService;
   }
 
-  private final static int AI_RESPONSE_TIME_IN_SECONDS = 1;
+  private final static int AI_RESPONSE_TIME_IN_SECONDS = 2;
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
   //TODO: Create unit and integration tests.
-  //TODO: Try to remove id-variable in Ship and ShipDTO.
+  //TODO: Try to remove id-variable in Ship and ShipDTO, start in, start in frontend.
 
   @Override
   public Mono<Void> handleJoinRequest(WebSocketSession webSocketSession, GameCommand command, List<Ship> ships) {

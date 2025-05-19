@@ -27,7 +27,6 @@ public class AIOpponentServiceImpl implements AIOpponentService {
   @Override
   public Coordinate getNextStrike(List<Strike> strikes, List<Ship> sunkenShips, List<Ship> activeShips) {
     boolean[][] strikeGrid = getStrikeGrid(strikes);
-    if (!strikes.isEmpty()) {
       Coordinate[] hits = getHitsOfNotSunkenShips(sunkenShips, strikes);
       if (hits.length > 1) {
         Coordinate strikeCoordinateFromConnectedHits = getNewStrikeFromConnectedHits(strikeGrid, hits);
@@ -42,12 +41,11 @@ public class AIOpponentServiceImpl implements AIOpponentService {
         }
         log.warn("No valid coordinates found from single hit: strikes {}, hits {}", strikes, hits);
       }
-      int[][] heatmap = getHeatmap(strikeGrid, sunkenShips);
+      int[][] heatmap = getHeatmap(strikeGrid, activeShips);
       Coordinate bestStrikeFromHeatmap = getBestStrikeFromHeatmap(heatmap, strikeGrid);
       if (bestStrikeFromHeatmap != null) {
         return bestStrikeFromHeatmap;
       }
-    }
     Coordinate randomStrike = getRandomStrike(strikeGrid);
     if (randomStrike == null) {
       log.warn("No valid randomStrike: strikes {}", strikes);
@@ -232,36 +230,38 @@ public class AIOpponentServiceImpl implements AIOpponentService {
 
   private int[][] getHeatmap(boolean[][] strikeGrid, List<Ship> activeShips) {
     int[][] heatmap = new int[10][10];
-    int shipSize = getLargestRemainingShipSize(activeShips);
-    int baseIncrement = 1;
-    for (int row = 0; row < 10; row++) {
-      for (int col = 0; col <= 10 - shipSize; col++) {
-        boolean canPlace = true;
-        for (int k = 0; k < shipSize; k++) {
-          if (strikeGrid[row][col + k]) {
-            canPlace = false;
-            break;
-          }
-        }
-        if (canPlace) {
+    int[] remainingSizes = getRemainingShipSizes(activeShips);
+    for (int shipSize : remainingSizes) {
+      int pointIncrement = 1 + (shipSize - 1);
+      for (int row = 0; row < 10; row++) {
+        for (int col = 0; col <= 10 - shipSize; col++) {
+          boolean canPlace = true;
           for (int k = 0; k < shipSize; k++) {
-            heatmap[row][col + k] += baseIncrement;
+            if (strikeGrid[row][col + k]) {
+              canPlace = false;
+              break;
+            }
+          }
+          if (canPlace) {
+            for (int k = 0; k < shipSize; k++) {
+              heatmap[row][col + k] += pointIncrement;
+            }
           }
         }
       }
-    }
-    for (int row = 0; row <= 10 - shipSize; row++) {
-      for (int col = 0; col < 10; col++) {
-        boolean canPlace = true;
-        for (int k = 0; k < shipSize; k++) {
-          if (strikeGrid[row + k][col]) {
-            canPlace = false;
-            break;
-          }
-        }
-        if (canPlace) {
+      for (int row = 0; row <= 10 - shipSize; row++) {
+        for (int col = 0; col < 10; col++) {
+          boolean canPlace = true;
           for (int k = 0; k < shipSize; k++) {
-            heatmap[row + k][col] += baseIncrement;
+            if (strikeGrid[row + k][col]) {
+              canPlace = false;
+              break;
+            }
+          }
+          if (canPlace) {
+            for (int k = 0; k < shipSize; k++) {
+              heatmap[row + k][col] += pointIncrement;
+            }
           }
         }
       }
@@ -269,8 +269,8 @@ public class AIOpponentServiceImpl implements AIOpponentService {
     return heatmap;
   }
 
-  private int getLargestRemainingShipSize(List<Ship> activeShips) {
-    return activeShips.stream().mapToInt(ship -> ship.getCoordinates().size()).max().orElse(0);
+  private int[] getRemainingShipSizes(List<Ship> activeShips) {
+    return activeShips.stream().mapToInt(ship -> ship.getCoordinates().size()).distinct().toArray();
   }
 
   private Coordinate getBestStrikeFromHeatmap(int[][] heatmap, boolean[][] strikeGrid) {
@@ -296,23 +296,7 @@ public class AIOpponentServiceImpl implements AIOpponentService {
         Arrays.deepToString(strikeGrid));
       return null;
     }
-    Coordinate coordinate = bestCoordinates.get(ThreadLocalRandom.current().nextInt(bestCoordinates.size()));
-          logHeatmap(heatmap, bestScore, coordinate); // TODO: DEBUG
-    return coordinate;
-  }
-
-  public void logHeatmap(int[][] heatmap, int bestScore, Coordinate coordinate) {
-    StringBuilder sb = new StringBuilder();
-    sb.append("\nHeatmap:\n");
-
-    for (int[] ints : heatmap) {
-      for (int anInt : ints) {
-        sb.append(String.format("%3d", anInt));
-      }
-      sb.append("\n");
-    }
-    log.warn(sb.toString());
-    log.warn("{} score, picked {}", bestScore, coordinate);
+    return bestCoordinates.get(ThreadLocalRandom.current().nextInt(bestCoordinates.size()));
   }
 }
 
