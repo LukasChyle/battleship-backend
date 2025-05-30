@@ -86,6 +86,7 @@ public class GameWebSocketHandler implements WebSocketHandler {
             case JOIN_AI -> gameSessionService.handleJoinAiRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
             case LEAVE -> gameSessionService.handleLeaveRequest(session, command);
             case RECONNECT -> gameSessionService.handleReconnectRequest(session, command);
+            case PING ->  respondPingWithPong(session);
           };
         })
         .doFinally(signal -> {
@@ -97,6 +98,10 @@ public class GameWebSocketHandler implements WebSocketHandler {
               .subscribe();
         })
         .then(session.close());
+  }
+
+  private Mono<Void> respondPingWithPong(WebSocketSession session) {
+    return session.send(Mono.just("pong").map(session::textMessage));
   }
 }
 

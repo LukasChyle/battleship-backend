@@ -11,7 +11,8 @@ public enum GameCommandType {
   JOIN_AI("JOIN_AI"),
   RECONNECT("RECONNECT"),
   LEAVE("LEAVE"),
-  STRIKE("STRIKE");
+  STRIKE("STRIKE"),
+  PING("PING");
 
   private final String value;
 
