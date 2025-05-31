@@ -60,6 +60,7 @@ public class GameSessionServiceImpl implements GameSessionService {
   }
 
   private final static int AI_RESPONSE_TIME_IN_SECONDS = 2;
+  private final static int RECONNECT_DELAY_TIME_IN_SECONDS = 1;
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
@@ -136,7 +137,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     if (uuidValidationResult != null) {
       return uuidValidationResult;
     }
-    return Mono.delay(Duration.ofSeconds(1)) // Delay reconnection handling
+    return Mono.delay(Duration.ofSeconds(RECONNECT_DELAY_TIME_IN_SECONDS))
       .then(Mono.defer(() -> {
         GameSession gameSession = gameSessions.get(command.getGameId());
         Mono<Void> validationResult = gameRequestValidationService.validateReconnectRequest(
