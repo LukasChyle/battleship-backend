@@ -18,6 +18,8 @@ import static com.example.battleshipbackend.constants.AllowedOrigins.VALUES;
 @Configuration
 public class WebSocketConfig {
 
+
+
   @Bean
   public SimpleUrlHandlerMapping handlerMapping(WebSocketHandler webSocketHandler) {
     return new SimpleUrlHandlerMapping(Map.of("/play", webSocketHandler), 1);

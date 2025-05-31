@@ -19,7 +19,6 @@ import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 @Log4j2
@@ -29,9 +28,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
   private final ObjectMapper objectMapper;
   private final GameSessionService gameSessionService;
   private final GameDtoConverter gameDtoConverter;
-  private final WebSocketSessionRegistry webSocketSessionRegistry;
   private final GameMessageService gameMessageService;
-  private static final int MAX_MESSAGES = 5;
+  private static final int MAX_MESSAGES = 20;
   private static final Duration BUCKET_INTERVAL = Duration.ofSeconds(5);
 
   private final Map<String, AtomicInteger> sessionMessageCounters = new ConcurrentHashMap<>();
@@ -41,12 +39,10 @@ public class GameWebSocketHandler implements WebSocketHandler {
     ObjectMapper objectMapper,
     GameSessionService gameSessionService,
     GameDtoConverter gameDtoConverter,
-    WebSocketSessionRegistry webSocketSessionRegistry,
     GameMessageService gameMessageService) {
     this.objectMapper = objectMapper;
     this.gameSessionService = gameSessionService;
     this.gameDtoConverter = gameDtoConverter;
-    this.webSocketSessionRegistry = webSocketSessionRegistry;
     this.gameMessageService = gameMessageService;
     Schedulers.single()
       .schedulePeriodically(this::resetAllCounters, BUCKET_INTERVAL.toMillis(), BUCKET_INTERVAL.toMillis(), TimeUnit.MILLISECONDS);
@@ -58,13 +54,11 @@ public class GameWebSocketHandler implements WebSocketHandler {
 
   @Override
   public Mono<Void> handle(WebSocketSession session) {
-    Sinks.Many<WebSocketMessage> sink = Sinks.many().unicast().onBackpressureBuffer();
-    webSocketSessionRegistry.register(session.getId(), sink);
-
     log.info("Created WebSocketSession <{}>", session.getId());
     sessionMessageCounters.putIfAbsent(session.getId(), new AtomicInteger(0));
 
-    Mono<Void> receiveFlow = session.receive()
+    return session.receive()
+      .filter(message -> message.getType() == WebSocketMessage.Type.TEXT)
       .doOnNext(message -> {
         AtomicInteger counter = sessionMessageCounters.get(session.getId());
         if (counter.incrementAndGet() > MAX_MESSAGES) {
@@ -95,25 +89,16 @@ public class GameWebSocketHandler implements WebSocketHandler {
           command.setGameId("");
         }
         return switch (command.getType()) {
-          case STRIKE -> gameSessionService.handleStrikeRequest(session, command).then(Mono.empty());
-          case JOIN ->
-            gameSessionService.handleJoinRequest(session, command, gameDtoConverter.toListOfShip(command.getShips())).then(Mono.empty());
+          case STRIKE -> gameSessionService.handleStrikeRequest(session, command);
+          case JOIN -> gameSessionService.handleJoinRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
           case JOIN_FRIEND ->
-            gameSessionService.handleJoinFriendRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()))
-              .then(Mono.empty());
-          case JOIN_AI ->
-            gameSessionService.handleJoinAiRequest(session, command, gameDtoConverter.toListOfShip(command.getShips())).then(Mono.empty());
-          case LEAVE -> gameSessionService.handleLeaveRequest(session, command).then(Mono.empty());
-          case RECONNECT -> gameSessionService.handleReconnectRequest(session, command).then(Mono.empty());
-          case PING -> respondPingWithPong(session).then(Mono.empty());
+            gameSessionService.handleJoinFriendRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+          case JOIN_AI -> gameSessionService.handleJoinAiRequest(session, command, gameDtoConverter.toListOfShip(command.getShips()));
+          case LEAVE -> gameSessionService.handleLeaveRequest(session, command);
+          case RECONNECT -> gameSessionService.handleReconnectRequest(session, command);
         };
-      }).then();
-    Mono<Void> sendFlow = session.send(sink.asFlux());
-    return Mono.when(receiveFlow, sendFlow)
-      .doFinally(signal -> {
+      }).then().doFinally(signal -> {
         log.info("Closed WebSocketSession <{}>", session.getId());
-        webSocketSessionRegistry.remove(session.getId());
-        sink.tryEmitComplete();
         sessionMessageCounters.remove(session.getId());
         gameSessionService.handleClosedSession(session)
           .doOnError(error -> log.error("Error in handleClosedSession: ", error))
@@ -122,8 +107,5 @@ public class GameWebSocketHandler implements WebSocketHandler {
       });
   }
 
-  private Mono<Void> respondPingWithPong(WebSocketSession session) {
-    return gameMessageService.sendStringMessage(session, "pong");
-  }
 }
 
