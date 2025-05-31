@@ -79,7 +79,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     if (gameSession.getSessionPlayer1() == null) {
       gameSession.setId(UUID.randomUUID().toString());
       return setPlayer1(gameSession, webSocketSession, ships).then(createNewGameSession(gameSession))
-          .then(gameMessageService.getGameEventToMessage(
+          .then(gameMessageService.sendGameEventMessage(
               gameEventBuilder.getWaitingOpponentEvent(gameSession.getId()),
               webSocketSession,
               false));
@@ -101,14 +101,14 @@ public class GameSessionServiceImpl implements GameSessionService {
       gameSession.setId(UUID.randomUUID().toString());
       gameSession.setAgainstFriend(true);
       return setPlayer1(gameSession, webSocketSession, ships).then(createNewGameSession(gameSession))
-          .then(gameMessageService.getGameEventToMessage(
+          .then(gameMessageService.sendGameEventMessage(
               gameEventBuilder.getWaitingFriendEvent(gameSession.getId()),
               webSocketSession,
               false));
     } else {
       gameSession = gameSessions.get(command.getGameId());
       if (gameSession == null) {
-        return gameMessageService.getGameEventToMessage(GameEvent.builder().eventType(GameEventType.WRONG_GAME_ID).build(),
+        return gameMessageService.sendGameEventMessage(GameEvent.builder().eventType(GameEventType.WRONG_GAME_ID).build(),
             webSocketSession, false);
       }
       return setPlayer2(gameSession, webSocketSession, ships).then(startGame(webSocketSession, gameSession));
@@ -146,13 +146,13 @@ public class GameSessionServiceImpl implements GameSessionService {
       gameSession.setSessionPlayer1(webSocketSession);
       gameSession.setPlayer1Connected(true);
       currentGameIdForWebSocketSession.put(webSocketSession.getId(), gameSession.getId());
-      return gameMessageService.getGameEventToMessage(
+      return gameMessageService.sendGameEventMessage(
           gameEventBuilder.getReconnectAsPlayer1Event(gameSession), webSocketSession, false);
     }
     gameSession.setSessionPlayer2(webSocketSession);
     gameSession.setPlayer2Connected(true);
     currentGameIdForWebSocketSession.put(webSocketSession.getId(), gameSession.getId());
-    return gameMessageService.getGameEventToMessage(
+    return gameMessageService.sendGameEventMessage(
         gameEventBuilder.getReconnectAsPlayer2Event(gameSession), webSocketSession, false);
   }
 
@@ -173,7 +173,7 @@ public class GameSessionServiceImpl implements GameSessionService {
         .then(Mono.defer(() -> {
           if ((gameSession.getSessionPlayer1().equals(webSocketSession) && gameSession.isPlayer2Connected()) ||
               (gameSession.getSessionPlayer2().equals(webSocketSession) && gameSession.isPlayer1Connected())) {
-            return gameMessageService.getGameEventsToMessages(
+            return gameMessageService.sendGameEventMessages(
                 gameEventBuilder.getOpponentLeftEvent(),
                 gameSession.getSessionPlayer1().equals(webSocketSession) ? gameSession.getSessionPlayer2()
                     : gameSession.getSessionPlayer1(),
@@ -182,7 +182,7 @@ public class GameSessionServiceImpl implements GameSessionService {
                 true
             );
           } else {
-            return gameMessageService.getGameEventToMessage(
+            return gameMessageService.sendGameEventMessage(
                 gameEventBuilder.getEmptyEvent(),
                 gameSession.getSessionPlayer1().equals(webSocketSession) ? gameSession.getSessionPlayer1()
                     : gameSession.getSessionPlayer2(),
@@ -263,20 +263,20 @@ public class GameSessionServiceImpl implements GameSessionService {
     gameSession.startTimer();
     GameEvent currentSessionEvent = gameEventBuilder.getCurrentSessionStrikeEvent(webSocketSession, gameSession, isShipSunk);
     if (gameSession.isAgainstAI()) {
-      return gameMessageService.getGameEventToMessage(
+      return gameMessageService.sendGameEventMessage(
           currentSessionEvent,
           webSocketSession,
           false).then(Mono.delay(Duration.ofSeconds(AI_RESPONSE_TIME_IN_SECONDS))
           .flatMap(tick -> handleAiStrike(webSocketSession, gameSession)));
     }
     if (!gameSessionResolver.isAdversaryConnected(webSocketSession, gameSession)) {
-      return gameMessageService.getGameEventToMessage(
+      return gameMessageService.sendGameEventMessage(
           currentSessionEvent,
           webSocketSession,
           false);
     }
     GameEvent adversaryEvent = gameEventBuilder.getAdversaryStrikeEvent(webSocketSession, gameSession, isShipSunk);
-    return gameMessageService.getGameEventsToMessages(
+    return gameMessageService.sendGameEventMessages(
         currentSessionEvent,
         webSocketSession,
         adversaryEvent,
@@ -293,7 +293,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     if (gameSession.isAgainstAI()) {
       if (gameSession.isPlayer1Connected()) {
         return removeGameSession(gameSession.getId(), true)
-            .then(gameMessageService.getGameEventToMessage(
+            .then(gameMessageService.sendGameEventMessage(
                 winnerSession == null ? gameEventBuilder.getLoseEvent(loserSession, gameSession)
                     : gameEventBuilder.getWinEvent(winnerSession, gameSession),
                 winnerSession == null ? loserSession : winnerSession,
@@ -304,10 +304,10 @@ public class GameSessionServiceImpl implements GameSessionService {
     GameEvent loserEvent = gameEventBuilder.getLoseEvent(loserSession, gameSession);
     if (gameSessionResolver.isAdversaryConnected(winnerSession, gameSession)) {
       return removeGameSession(gameSession.getId(), true)
-          .then(gameMessageService.getGameEventsToMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
+          .then(gameMessageService.sendGameEventMessages(winnerEvent, winnerSession, loserEvent, loserSession, true));
     }
     return removeGameSession(gameSession.getId(), true)
-        .then(gameMessageService.getGameEventToMessage(winnerEvent, winnerSession, true));
+        .then(gameMessageService.sendGameEventMessage(winnerEvent, winnerSession, true));
   }
 
   private Mono<Void> removeGameSession(String gameId, boolean isGameCompleted) {
@@ -386,12 +386,12 @@ public class GameSessionServiceImpl implements GameSessionService {
     gameSession.setGameStarted(true);
     gameSession.startTimer();
     if (gameSession.isAgainstAI()) {
-      return gameMessageService.getGameEventToMessage(
+      return gameMessageService.sendGameEventMessage(
           gameEventBuilder.getAdversaryStartGameEvent(gameSession),
           webSocketSession,
           false);
     }
-    return gameMessageService.getGameEventsToMessages(
+    return gameMessageService.sendGameEventMessages(
         gameEventBuilder.getAdversaryStartGameEvent(gameSession),
         gameSession.getSessionPlayer1(),
         gameEventBuilder.getCurrentSessionStartGameEvent(gameSession),
@@ -417,7 +417,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     gameSession.setGameState(GameStateType.TURN_PLAYER1);
     gameSession.startTimer();
     if (gameSession.isPlayer1Connected()) {
-      return gameMessageService.getGameEventToMessage(
+      return gameMessageService.sendGameEventMessage(
           gameEventBuilder.getAiStrikeEvent(gameSession, isShipSunk), webSocketSession, false);
     }
     return Mono.empty();

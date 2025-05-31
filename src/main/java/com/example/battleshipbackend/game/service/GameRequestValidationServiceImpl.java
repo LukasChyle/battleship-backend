@@ -34,7 +34,7 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
   public Mono<Void> validateUUID(WebSocketSession webSocketSession, String uuid) {
     if (gameRuleService.isNotUUID(uuid)) {
       log.warn("Invalid UUID, session <{}>, UUID <{}>", webSocketSession.getId(), uuid);
-      return gameMessageService.getStringToMessage("Game id is not valid.", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Game id is not valid.");
     }
     return null;
   }
@@ -43,11 +43,11 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
   public Mono<Void> validateJoinRequest(WebSocketSession webSocketSession, List<Ship> ships, boolean isInCurrentGame) {
     if (isInCurrentGame) {
       log.warn("Tried to join a game when already in a game, session <{}>", webSocketSession.getId());
-      return gameMessageService.getStringToMessage("Can't join a game when already in one", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession,"Can't join a game when already in one");
     }
     if (!gameRuleService.isShipsValid(ships)) {
       log.warn("Tried to join a game with invalid ships, session <{}>, ships <{}>", webSocketSession.getId(), ships);
-      return gameMessageService.getStringToMessage("Can't join a game without correct setup of ships.", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Can't join a game without correct setup of ships.");
     }
     return null;
   }
@@ -55,12 +55,12 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
   @Override
   public Mono<Void> validateReconnectRequest(WebSocketSession webSocketSession, GameSession gameSession) {
     if (gameSession == null) {
-      return gameMessageService.getGameEventToMessage(GameEvent.builder().eventType(GameEventType.NO_GAME).build(), webSocketSession, true);
+      return gameMessageService.sendGameEventMessage(GameEvent.builder().eventType(GameEventType.NO_GAME).build(), webSocketSession, true);
     }
     if (gameSession.isPlayer1Connected() && gameSession.isPlayer2Connected()) {
       log.warn("Tried to reconnect to a game with active sessions, session <{}>, game: <{}>", webSocketSession.getId(),
           gameSession.toString());
-      return gameMessageService.getStringToMessage("Both players for this game are already active", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Both players for this game are already active");
     }
     return null;
   }
@@ -73,7 +73,7 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
     }
     if (!gameSession.getSessionPlayer1().equals(webSocketSession) && !gameSession.getSessionPlayer2().equals(webSocketSession)) {
       log.warn("LeaveRequest: wrong session <{}> for game: <{}>", webSocketSession.getId(), gameSession.toString());
-      return gameMessageService.getStringToMessage("Wrong session for this game", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Wrong session for this game");
     }
     return null;
   }
@@ -87,28 +87,28 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
     if (gameCommand.getStrikeRow() == null || gameCommand.getStrikeColumn() == null) {
       log.warn("Tried to strike without row and/or column values, session <{}>, game id: <{}>", webSocketSession.getId(),
           gameSession.getId());
-      return gameMessageService.getStringToMessage("Row and/or column values are missing", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Row and/or column values are missing");
     }
     if (gameCommand.getStrikeRow() > 9 || gameCommand.getStrikeRow() < 0 || gameCommand.getStrikeColumn() > 9
         || gameCommand.getStrikeColumn() < 0) {
       log.warn("Tried to strike with wrong values on row and/or column, session <{}>, game id: <{}>", webSocketSession.getId(),
           gameSession.getId());
-      return gameMessageService.getStringToMessage("Row and/or column values are not valid", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Row and/or column values are not valid");
     }
     if (!gameSession.getSessionPlayer1().equals(webSocketSession) && !gameSession.getSessionPlayer2().equals(webSocketSession)) {
       log.warn("StrikeRequest: wrong session <{}> for game: <{}>", webSocketSession.getId(), gameSession.toString());
-      return gameMessageService.getStringToMessage("Wrong session for this game", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Wrong session for this game");
     }
     if ((gameSession.isAgainstAI() && gameSession.getGameState() != GameStateType.TURN_PLAYER1) ||
         (!gameSession.isAgainstAI() && (
             (gameSession.getGameState() == GameStateType.TURN_PLAYER1 && gameSession.getSessionPlayer2().equals(webSocketSession)) ||
                 (gameSession.getGameState() == GameStateType.TURN_PLAYER2 && gameSession.getSessionPlayer1().equals(webSocketSession))))) {
       log.warn("Tried to strike on opponents turn, session <{}>, game id: <{}>", webSocketSession.getId(), gameSession.getId());
-      return gameMessageService.getStringToMessage("Not your turn to play", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Not your turn to play");
     }
     if (gameRuleService.isStrikePositionAlreadyUsed(gameCommand.getStrikeRow(), gameCommand.getStrikeColumn(),
         gameSessionResolver.getCurrentSessionStrikes(webSocketSession, gameSession))) {
-      return gameMessageService.getStringToMessage("Can't hit same position twice", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Can't hit same position twice");
     }
     return null;
   }
@@ -116,7 +116,7 @@ public class GameRequestValidationServiceImpl implements GameRequestValidationSe
   private Mono<Void> validateGameSession(WebSocketSession webSocketSession, GameSession gameSession, String gameId) {
     if (gameSession == null) {
       log.warn("Didn't find game with game id: <{}> by session <{}>", gameId, webSocketSession.getId());
-      return gameMessageService.getStringToMessage("Game with that id does not exist", webSocketSession);
+      return gameMessageService.sendStringMessage(webSocketSession, "Game with that id does not exist");
     }
     return null;
   }
