@@ -39,10 +39,10 @@ public class GameMessageServiceImpl implements GameMessageService {
       );
     }
     if (lastMessage) {
-      sendMono = sendMono.then(Mono.fromRunnable(() -> {
-        webSocketSinkRegistry.close(session1.getId());
-        webSocketSinkRegistry.close(session2.getId());
-      }));
+      return Mono.when(
+        closeSessionAndSink(session1),
+        closeSessionAndSink(session2)
+      );
     }
     return sendMono;
   }
@@ -58,9 +58,7 @@ public class GameMessageServiceImpl implements GameMessageService {
       sendMono = sendStringMessage(session, "Error: something went wrong server-side");
     }
     if (lastMessage) {
-      sendMono = sendMono.then(Mono.fromRunnable(() -> {
-        webSocketSinkRegistry.close(session.getId());
-      }));
+      sendMono = sendMono.then(closeSessionAndSink(session));
     }
     return sendMono;
   }
@@ -69,5 +67,15 @@ public class GameMessageServiceImpl implements GameMessageService {
   public Mono<Void> sendStringMessage(WebSocketSession session, String string) {
     webSocketSinkRegistry.send(session.getId(), session.textMessage(string));
     return Mono.empty();
+  }
+
+  private Mono<Void> closeSessionAndSink(WebSocketSession session) {
+    return session.close()
+      .doOnSuccess(unused -> log.info("Closed session <{}>", session.getId()))
+      .onErrorResume(error -> {
+        log.warn("Error closing session <{}>: {}", session.getId(), error.getMessage());
+        return Mono.empty();
+      })
+      .then(Mono.fromRunnable(() -> webSocketSinkRegistry.close(session.getId())));
   }
 }

@@ -110,9 +110,8 @@ public class GameWebSocketHandler implements WebSocketHandler {
           case RECONNECT -> gameSessionService.handleReconnectRequest(session, command);
         };
       }).then();
-    Mono<Void> output = session.send(outputFlux).then(session.close());
+    Mono<Void> output = session.send(outputFlux);
     return Mono.when(input, output).doFinally(signal -> {
-      log.info("Closed WebSocketSession <{}>", session.getId());
       sessionMessageCounters.remove(session.getId());
       gameSessionService.handleClosedSession(session)
         .doOnError(error -> log.error("Error in handleClosedSession: ", error))
