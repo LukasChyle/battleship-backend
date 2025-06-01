@@ -64,7 +64,6 @@ public class GameSessionServiceImpl implements GameSessionService {
   private final Map<String, GameSession> gameSessions = new ConcurrentHashMap<>();
   private final Map<String, String> currentGameIdForWebSocketSession = new ConcurrentHashMap<>();
 
-  //TODO: Still get "reactor.netty.AbortedException: connection has been closed" after 2 minutes of idle.
   //TODO: Create unit and integration tests.
   //TODO: Try to remove id-variable in Ship and ShipDTO, start in, start in frontend.
 
