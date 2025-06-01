@@ -83,6 +83,10 @@ public class GameWebSocketHandler implements WebSocketHandler {
         return Mono.error(throwable);
       })
       .flatMapSequential(message -> {
+        String payload = message.getPayloadAsText().trim();
+        if ("ping".equalsIgnoreCase(payload)) {
+          return gameMessageService.sendStringMessage(session, "pong");
+        }
         GameCommand command;
         try {
           command = objectMapper.readValue(message.getPayloadAsText(), GameCommand.class);
@@ -106,17 +110,15 @@ public class GameWebSocketHandler implements WebSocketHandler {
           case RECONNECT -> gameSessionService.handleReconnectRequest(session, command);
         };
       }).then();
-
     Mono<Void> output = session.send(outputFlux).then(session.close());
-
     return Mono.when(input, output).doFinally(signal -> {
-        log.info("Closed WebSocketSession <{}>", session.getId());
-        sessionMessageCounters.remove(session.getId());
-        gameSessionService.handleClosedSession(session)
-          .doOnError(error -> log.error("Error in handleClosedSession: ", error))
-          .onErrorComplete()
-          .subscribe();
-      });
+      log.info("Closed WebSocketSession <{}>", session.getId());
+      sessionMessageCounters.remove(session.getId());
+      gameSessionService.handleClosedSession(session)
+        .doOnError(error -> log.error("Error in handleClosedSession: ", error))
+        .onErrorComplete()
+        .subscribe();
+    });
   }
 }
 
